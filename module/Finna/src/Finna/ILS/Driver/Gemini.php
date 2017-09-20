@@ -977,7 +977,7 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
      */
     public function updateEmail($patron, $email)
     {
-        $details = "<MainEmail>$email</MainEmail>";
+        $details = '<MainEmail>' . $this->encodeXML($email) . '</MainEmail>';
         $xml = $this->createPatronUpdateXML($patron, $details);
         $response = $this->makeRequest('PatronUpdWDelay', false, 'POST', $xml);
 
@@ -1009,7 +1009,7 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
      */
     public function updatePhone($patron, $phone)
     {
-        $details = "<MainPhone>$phone</MainPhone>";
+        $details = '<MainPhone>' . $this->encodeXML($phone) . '</MainPhone>';
         $xml = $this->createPatronUpdateXML($patron, $details);
         $response = $this->makeRequest('PatronUpdWDelay', false, 'POST', $xml);
 
@@ -1041,7 +1041,7 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
      */
     public function updateSmsNumber($patron, $number)
     {
-        $details = "<Mobile>$number</Mobile>";
+        $details = '<Mobile>' . $this->encodeXML($number) . '</Mobile>';
         $xml = $this->createPatronUpdateXML($patron, $details);
         $response = $this->makeRequest('PatronUpdWDelay', false, 'POST', $xml);
 
@@ -1073,7 +1073,6 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
      */
     public function updateAddress($patron, $details)
     {
-
         $addressFields = isset($this->config['updateAddress']['fields'])
             ? $this->config['updateAddress']['fields'] : [];
         $addressFields = array_map(
@@ -1091,7 +1090,8 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
             if (isset($addressFields[$key]) && !empty($value != '')
                 && $patron['full_data'][$key] != $value
             ) {
-                $request .= "<$key>$value</$key>";
+                $request .= '<' . $this->encodeXML($key) . '>' .
+                  $this->encodeXML($value) . '</' . $this->encodeXML($key) . '>';
             }
         }
 
@@ -1277,8 +1277,8 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
      */
     protected function createPatronUpdateXML($patron, $details)
     {
-        $barCode = $patron['cat_username'];
-        $pinCode = $patron['cat_password'];
+        $barCode = $this->encodeXML($patron['cat_username']);
+        $pinCode = $this->encodeXML($patron['cat_password']);
         $xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>
                 <PatronUpdWDelay
                     xmlns=\"http://www.abilita.fi/schemas/patronInformation\">
@@ -1339,14 +1339,9 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
             $this->error(
                 "$mode request for '$urlParams' failed"
             );
-            if ($params) {
-                $this->debug("with params: '$params'");
-            }
-            if ($xml) {
-                $this->debug("with xml: '$xml'");
-            }
             $this->debug(
-                $result->getStatusCode() . ': ' . $result->getReasonPhrase()
+                "with params: '$params' with xml: '$xml'"
+                . $result->getStatusCode() . ': ' . $result->getReasonPhrase()
             );
             $this->error(
                 " server response: "
