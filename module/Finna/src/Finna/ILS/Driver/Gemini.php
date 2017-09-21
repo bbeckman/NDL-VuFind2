@@ -387,11 +387,11 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
 
         $fullData = [
             'MainAddrLine1' => (string) $info->MainAddrLine1,
-            'MainZip' => (int) $info->MainZip,
+            'MainZip' => (string) $info->MainZip,
             'MainPlace' => (string) $info->MainPlace,
             'MainCountry' => (string) $info->MainCountry,
-            'MainPhone' => (int) $info->MainPhone,
-            'Mobile' => (int) $info->Mobile,
+            'MainPhone' => (string) $info->MainPhone,
+            'Mobile' => (string) $info->Mobile,
             'MainEmail' => (string) $info->MainEmail
         ];
 
@@ -403,11 +403,11 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
             'firstname' => $firstname,
             'email' => (string) $info->MainEmail,
             'address1' => (string) $info->MainAddrLine1,
-            'zip' => (int) $info->MainZip,
+            'zip' => (string) $info->MainZip,
             'city' => (string) $info->MainPlace,
             'country' => (string) $info->MainCountry,
-            'phone' => (int) $info->MainPhone,
-            'smsnumber' => (int) $info->Mobile,
+            'phone' => (string) $info->MainPhone,
+            'smsnumber' => (string) $info->Mobile,
             'phoneLocalCode' => null,
             'phoneAreaCode' => null,
             'major' => null,
@@ -1090,8 +1090,7 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
             if (isset($addressFields[$key]) && !empty($value != '')
                 && $patron['full_data'][$key] != $value
             ) {
-                $request .= '<' . $this->encodeXML($key) . '>' .
-                  $this->encodeXML($value) . '</' . $this->encodeXML($key) . '>';
+                $request .= '<$key>' . $this->encodeXML($value) . '</$key>';
             }
         }
 
