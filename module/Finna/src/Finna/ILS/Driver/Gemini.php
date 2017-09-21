@@ -1090,7 +1090,7 @@ class Gemini extends \VuFind\ILS\Driver\AbstractBase
             if (isset($addressFields[$key]) && !empty($value != '')
                 && $patron['full_data'][$key] != $value
             ) {
-                $request .= '<$key>' . $this->encodeXML($value) . '</$key>';
+                $request .= "<$key>" . $this->encodeXML($value) . "</$key>";
             }
         }
 
