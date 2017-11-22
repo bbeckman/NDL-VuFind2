@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Db_Table
@@ -26,8 +26,8 @@
  * @link     http://vufind.org   Main Site
  */
 namespace Finna\Db\Table;
+
 use Zend\Db\Sql\Select;
-use Zend\Config\Config, Zend\Session\Container;
 
 /**
  * Table Definition for user
@@ -40,20 +40,6 @@ use Zend\Config\Config, Zend\Session\Container;
  */
 class User extends \VuFind\Db\Table\User
 {
-    /**
-     * Constructor
-     *
-     * @param Config    $config   VuFind configuration
-     * @param string    $rowClass Name of class for representing rows
-     * @param Container $session  Session container to inject into rows (optional;
-     * used for privacy mode)
-     */
-    public function __construct(Config $config, $rowClass = 'Finna\Db\Row\User',
-        Container $session = null
-    ) {
-        parent::__construct($config, $rowClass, $session);
-    }
-
     /**
      * Create a row for the specified username.
      *
@@ -70,6 +56,21 @@ class User extends \VuFind\Db\Table\User
             : $username;
         $row->created = date('Y-m-d H:i:s');
         return $row;
+    }
+
+    /**
+     * Retrieve a user object from the database based on catalog ID.
+     *
+     * @param string $catId Catalog ID.
+     *
+     * @return UserRow
+     */
+    public function getByCatalogId($catId)
+    {
+        if (isset($this->config->Site->institution)) {
+            $catId = $this->config->Site->institution . ":$catId";
+        }
+        return parent::getByCatalogId($catId);
     }
 
     /**
@@ -146,7 +147,10 @@ class User extends \VuFind\Db\Table\User
     {
         return $this->select(
             function (Select $select) {
-                $select->where->greaterThan('finna_due_date_reminder', 0);
+                $subquery = new Select('user_card');
+                $subquery->columns(['user_id']);
+                $subquery->where->greaterThan('finna_due_date_reminder', 0);
+                $select->where->in('id', $subquery);
                 $select->order('username desc');
             }
         );

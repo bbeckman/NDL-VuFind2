@@ -26,6 +26,7 @@
  * @link     https://vufind.org/wiki/development:plugins:controllers Wiki
  */
 namespace VuFindConsole\Controller;
+
 use Zend\Console\Console;
 use Zend\Mvc\Application;
 
@@ -47,8 +48,7 @@ class RedirectController extends \Zend\Mvc\Controller\AbstractActionController
      */
     protected function getUsage()
     {
-        $strategy = $this->getServiceLocator()->get('ViewManager')
-            ->getRouteNotFoundStrategy();
+        $strategy = $this->serviceLocator->get('ConsoleRouteNotFoundStrategy');
         $event = $this->getEvent();
         $event->setError(Application::ERROR_ROUTER_NO_MATCH);
         $strategy->handleRouteNotFoundError($event);

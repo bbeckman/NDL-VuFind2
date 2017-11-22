@@ -5,7 +5,7 @@
  * PHP version 5
  *
  * Copyright (C) Villanova University 2007.
- * Copyright (C) The National Library of Finland 2015-2016.
+ * Copyright (C) The National Library of Finland 2015-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Cover_Generator
@@ -28,6 +28,7 @@
  * @link     https://vufind.org/wiki/configuration:external_content Wiki
  */
 namespace Finna\Cover;
+
 use VuFindCode\ISBN;
 
 /**
@@ -75,36 +76,36 @@ class Loader extends \VuFind\Cover\Loader
      *
      * @var int
      */
-    protected $width;
+    protected $width = 100;
 
     /**
      * Image height
      *
      * @var int
      */
-    protected $height;
+    protected $height = 100;
 
     /**
-     * Use full-resolution image?
+     * Image size to use
      *
      * @var boolean
      */
-    protected $fullRes;
+    protected $size = 'medium';
 
     /**
      * Set image parameters.
      *
-     * @param int     $width   Image width
-     * @param int     $height  Image height
-     * @param boolean $fullRes Use full-resolution image?
+     * @param int    $width  Image width
+     * @param int    $height Image height
+     * @param string $size   Image size to use
      *
      * @return void
      */
-    public function setParams($width, $height, $fullRes = false)
+    public function setParams($width, $height, $size = 'medium')
     {
         $this->width = $width;
         $this->height = $height;
-        $this->fullRes = $fullRes;
+        $this->size = $size;
     }
 
     /**
@@ -160,12 +161,10 @@ class Loader extends \VuFind\Cover\Loader
     ) {
         $this->index = $index;
 
-        $params = $driver->getRecordImage(
-            $this->fullRes ? 'large' : 'medium', $index
-        );
+        $params = $driver->getRecordImage($this->size, $index);
 
         if (isset($params['url'])) {
-            $this->id = $params['id'];
+            $this->id = $driver->getUniqueID();
             $this->url = $params['url'];
             return parent::fetchFromAPI();
         }
@@ -219,7 +218,7 @@ class Loader extends \VuFind\Cover\Loader
 
         $keys = array_merge(
             $keys,
-            [$this->index, $this->width, $this->height, $this->fullRes ? '1' : '0']
+            [$this->index, $this->width, $this->height, $this->size]
         );
 
         $file = implode('-', $keys);

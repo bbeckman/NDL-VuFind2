@@ -4,7 +4,7 @@
  *
  * PHP version 5
  *
- * Copyright (C) The National Library of Finland 2015-2016.
+ * Copyright (C) The National Library of Finland 2015-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -17,11 +17,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Controller
  * @author   Samuli Sillanpää <samuli.sillanpaa@helsinki.fi>
+ * @author   Ere Maijala <ere.maijala@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:building_a_controller Wiki
  */
@@ -33,19 +34,20 @@ namespace FinnaConsole\Controller;
  * @category VuFind
  * @package  Controller
  * @author   Samuli Sillanpää <samuli.sillanpaa@helsinki.fi>
+ * @author   Ere Maijala <ere.maijala@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:building_a_controller Wiki
  */
 class UtilController extends \VuFindConsole\Controller\UtilController
 {
     /**
-     * Clears expired MetaLib searches from the database.
+     * Sends reminders for expiring user accounts
      *
      * @return \Zend\Console\Response
      */
-    public function clearMetaLibSearchAction()
+    public function accountExpirationRemindersAction()
     {
-        return $this->runService('Finna\ClearMetaLibSearch');
+        return $this->runService('Finna\AccountExpirationReminders');
     }
 
     /**
@@ -66,6 +68,26 @@ class UtilController extends \VuFindConsole\Controller\UtilController
     public function encryptCatalogPasswordsAction()
     {
         return $this->runService('Finna\EncryptCatalogPasswords');
+    }
+
+    /**
+     * Command-line tool to clear unwanted entries
+     * from finna cache database table.
+     *
+     * @return \Zend\Console\Response
+     */
+    public function expireFinnaCacheAction()
+    {
+        $request = $this->getRequest();
+        if ($request->getParam('help') || $request->getParam('h')) {
+            return $this->expirationHelp('cache entries');
+        }
+
+        return $this->expire(
+            'FinnaCache',
+            '%%count%% expired cache entries deleted.',
+            'No expired cache entries to delete.'
+        );
     }
 
     /**
@@ -119,6 +141,16 @@ class UtilController extends \VuFindConsole\Controller\UtilController
     }
 
     /**
+     * Verify resource metadata.
+     *
+     * @return \Zend\Console\Response
+     */
+    public function verifyResourceMetadataAction()
+    {
+        return $this->runService('Finna\VerifyResourceMetadata');
+    }
+
+    /**
      * Helper function for running a service.
      *
      * @param string $service Service name.
@@ -128,8 +160,8 @@ class UtilController extends \VuFindConsole\Controller\UtilController
     protected function runService($service)
     {
         $arguments = $this->getRequest()->getParams()->toArray();
-        $arguments = array_splice($arguments, 2);
-        $sl = $this->getServiceLocator();
+        $arguments = array_splice($arguments, 2, -2);
+        $sl = $this->serviceLocator;
         // Disable sharing of mailer so that every time an instance is requested a
         // new one is created. This avoids sharing an SMTP connection that might time
         // out during a long execution.

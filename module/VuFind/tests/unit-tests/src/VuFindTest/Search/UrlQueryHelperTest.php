@@ -28,10 +28,10 @@
  */
 namespace VuFindTest\Search;
 
-use VuFind\Search\UrlQueryHelper;
 use VuFind\Search\Factory\UrlQueryHelperFactory;
-use VuFindTest\Unit\TestCase as TestCase;
+use VuFind\Search\UrlQueryHelper;
 use VuFindSearch\Query\Query;
+use VuFindTest\Unit\TestCase as TestCase;
 
 /**
  * UrlQueryHelper unit tests.
@@ -144,7 +144,7 @@ class UrlQueryHelperTest extends TestCase
     public function testFactory()
     {
         $factory = new UrlQueryHelperFactory();
-        $config = $this->getMock('VuFind\Config\PluginManager');
+        $config = $this->createMock('VuFind\Config\PluginManager');
         $params = new \VuFindTest\Search\TestHarness\Params(
             new \VuFindTest\Search\TestHarness\Options($config), $config
         );

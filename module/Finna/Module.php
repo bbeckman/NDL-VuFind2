@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Module
@@ -26,10 +26,8 @@
  * @link     https://github.com/dmj/vf2-proxy
  */
 namespace Finna;
-use Zend\EventManager\StaticEventManager,
-    Zend\ModuleManager\ModuleManager,
-    Zend\Mvc\MvcEvent,
-    Zend\Console\Console;
+
+use Zend\Mvc\MvcEvent;
 
 /**
  * Module for storing local overrides for Finna.
@@ -69,24 +67,6 @@ class Module
     }
 
     /**
-     * Initialize the module
-     *
-     * @param ModuleManager $m Module manager
-     *
-     * @return void
-     */
-    public function init(ModuleManager $m)
-    {
-        if (!Console::isConsole()) {
-            $em = StaticEventManager::getInstance();
-            $em->attach(
-                'Zend\Mvc\Application', 'bootstrap', [$this, 'registerBaseUrl'],
-                100000
-            );
-        }
-    }
-
-    /**
      * Bootstrap the module
      *
      * @param MvcEvent $e Event
@@ -97,25 +77,5 @@ class Module
     {
         $bootstrapper = new Bootstrapper($e);
         $bootstrapper->bootstrap();
-    }
-
-    /**
-     * Initializes the base url for the application from environment variable
-     *
-     * @param MvcEvent $e Event
-     *
-     * @return void
-     */
-    public function registerBaseUrl(MvcEvent $e)
-    {
-        $request = $e->getApplication()->getRequest();
-        $baseUrl = $request->getServer('FINNA_BASE_URL');
-
-        if (!empty($baseUrl)) {
-            $baseUrl = '/' . trim($baseUrl, '/');
-            $router = $e->getApplication()->getServiceManager()->get('Router');
-            $router->setBaseUrl($baseUrl);
-            $request->setBaseUrl($baseUrl);
-        }
     }
 }

@@ -26,8 +26,10 @@
  * @link     https://vufind.org/wiki/development Wiki
  */
 namespace VuFind\View\Helper\Root;
+
 use VuFind\Cover\Router as CoverRouter;
-use Zend\View\Exception\RuntimeException, Zend\View\Helper\AbstractHelper;
+use Zend\View\Exception\RuntimeException;
+use Zend\View\Helper\AbstractHelper;
 
 /**
  * Record driver view helper
@@ -100,7 +102,7 @@ class Record extends AbstractHelper
      *
      * @return string
      */
-    protected function renderTemplate($name, $context = null)
+    public function renderTemplate($name, $context = null)
     {
         // Set default context if none provided:
         if (is_null($context)) {
@@ -410,16 +412,20 @@ class Record extends AbstractHelper
      * Render an HTML checkbox control for the current record.
      *
      * @param string $idPrefix Prefix for checkbox HTML ids
+     * @param string $formAttr ID of form for [form] attribute
      *
      * @return string
      */
-    public function getCheckbox($idPrefix = '')
+    public function getCheckbox($idPrefix = '', $formAttr = false)
     {
         static $checkboxCount = 0;
         $id = $this->driver->getSourceIdentifier() . '|'
             . $this->driver->getUniqueId();
         $context
             = ['id' => $id, 'count' => $checkboxCount++, 'prefix' => $idPrefix];
+        if ($formAttr) {
+            $context['formAttr'] = $formAttr;
+        }
         return $this->contextHelper->renderInContext(
             'record/checkbox.phtml', $context
         );
@@ -556,9 +562,9 @@ class Record extends AbstractHelper
             return false;
         }
 
-        switch($context) {
-        case "core" :
-        case "results" :
+        switch ($context) {
+        case "core":
+        case "results":
             $key = 'showIn' . ucwords(strtolower($context));
             break;
         default:

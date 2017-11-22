@@ -19,7 +19,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Search
@@ -63,7 +63,12 @@ class SolrDefaultBackendFactory
      */
     protected function createBackend(Connector $connector)
     {
-        $backend = parent::createBackend($connector);
+        $backend = new \FinnaSearch\Backend\Solr\Backend($connector);
+        $backend->setQueryBuilder($this->createQueryBuilder());
+        $backend->setSimilarBuilder($this->createSimilarBuilder());
+        if ($this->logger) {
+            $backend->setLogger($this->logger);
+        }
         $manager = $this->serviceLocator->get('VuFind\RecordDriverPluginManager');
         $factory = new RecordCollectionFactory(
             [$manager, 'getSolrRecord'],
@@ -83,6 +88,14 @@ class SolrDefaultBackendFactory
     protected function createListeners(Backend $backend)
     {
         parent::createListeners($backend);
+
+        // Apply deduplication also if it's not enabled by default (could be enabled
+        // by a special filter):
+        $search = $this->config->get($this->searchConfig);
+        if (!isset($search->Records->deduplication)) {
+            $events = $this->serviceLocator->get('SharedEventManager');
+            $this->getDeduplicationListener($backend, false)->attach($events);
+        }
 
         $events = $this->serviceLocator->get('SharedEventManager');
 
@@ -120,12 +133,30 @@ class SolrDefaultBackendFactory
         $unicodeNormalizationForm
             = isset($search->General->unicode_normalization_form)
             ? $search->General->unicode_normalization_form : 'NFKC';
+        $searchFilters
+            = isset($config->Index->search_filters)
+            ? $config->Index->search_filters : [];
         $helper = new LuceneSyntaxHelper(
-            $caseSensitiveBooleans, $caseSensitiveRanges, $unicodeNormalizationForm
+            $caseSensitiveBooleans,
+            $caseSensitiveRanges,
+            $unicodeNormalizationForm,
+            $searchFilters
         );
         $builder->setLuceneHelper($helper);
 
         return $builder;
+    }
+
+    /**
+     * Create the similar records query builder.
+     *
+     * @return VuFindSearch\Backend\Solr\SimilarBuilder
+     */
+    protected function createSimilarBuilder()
+    {
+        return new \FinnaSearch\Backend\Solr\SimilarBuilder(
+            $this->config->get($this->searchConfig), $this->uniqueKey
+        );
     }
 
     /**
@@ -169,5 +200,19 @@ class SolrDefaultBackendFactory
         }
 
         return $hf;
+    }
+
+    /**
+     * Get the Solr URL.
+     *
+     * @return string|array
+     */
+    protected function getSolrUrl()
+    {
+        $url = parent::getSolrUrl();
+        if (is_array($url) && $this->config->get('config')->Index->shuffle) {
+            shuffle($url);
+        }
+        return $url;
     }
 }

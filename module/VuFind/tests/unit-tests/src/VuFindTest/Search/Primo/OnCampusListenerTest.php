@@ -28,11 +28,11 @@
  */
 namespace VuFindTest\Search\Primo;
 
-use VuFindSearch\ParamBag;
+use VuFind\Search\Primo\InjectOnCampusListener;
 use VuFindSearch\Backend\Primo\Backend;
 use VuFindSearch\Backend\Primo\Connector;
 
-use VuFind\Search\Primo\InjectOnCampusListener;
+use VuFindSearch\ParamBag;
 use VuFindTest\Unit\TestCase;
 use Zend\EventManager\Event;
 
@@ -73,7 +73,7 @@ class OnCampusListenerTest extends TestCase
     public function testAttach()
     {
         $listener = new InjectOnCampusListener();
-        $mock = $this->getMock('Zend\EventManager\SharedEventManagerInterface');
+        $mock = $this->createMock('Zend\EventManager\SharedEventManagerInterface');
         $mock->expects($this->once())->method('attach')->with(
             $this->equalTo('VuFind\Search'),
             $this->equalTo('pre'),
@@ -93,7 +93,7 @@ class OnCampusListenerTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
         $listener = new InjectOnCampusListener($mockPermController);
-        $mock = $this->getMock('Zend\EventManager\SharedEventManagerInterface');
+        $mock = $this->createMock('Zend\EventManager\SharedEventManagerInterface');
         $mock->expects($this->once())->method('attach')->with(
             $this->equalTo('VuFind\Search'),
             $this->equalTo('pre'),

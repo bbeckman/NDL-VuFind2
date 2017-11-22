@@ -27,25 +27,25 @@
  */
 namespace VuFindSearch\Backend\Solr;
 
-use VuFindSearch\Query\AbstractQuery;
-use VuFindSearch\Query\Query;
-
-use VuFindSearch\ParamBag;
-
-use VuFindSearch\Response\RecordCollectionInterface;
-use VuFindSearch\Response\RecordCollectionFactoryInterface;
-
-use VuFindSearch\Backend\Solr\Response\Json\Terms;
-
 use VuFindSearch\Backend\AbstractBackend;
-use VuFindSearch\Feature\SimilarInterface;
-use VuFindSearch\Feature\RetrieveBatchInterface;
-use VuFindSearch\Feature\RandomInterface;
-
 use VuFindSearch\Backend\Exception\BackendException;
+
 use VuFindSearch\Backend\Exception\RemoteErrorException;
 
+use VuFindSearch\Backend\Solr\Response\Json\Terms;
 use VuFindSearch\Exception\InvalidArgumentException;
+
+use VuFindSearch\Feature\RandomInterface;
+
+use VuFindSearch\Feature\RetrieveBatchInterface;
+use VuFindSearch\Feature\SimilarInterface;
+use VuFindSearch\ParamBag;
+use VuFindSearch\Query\AbstractQuery;
+
+use VuFindSearch\Query\Query;
+use VuFindSearch\Response\RecordCollectionFactoryInterface;
+
+use VuFindSearch\Response\RecordCollectionInterface;
 
 /**
  * SOLR backend.
@@ -235,20 +235,43 @@ class Backend extends AbstractBackend
      *
      * @return Terms
      */
-    public function terms($field, $start, $limit, ParamBag $params = null)
-    {
+    public function terms($field = null, $start = null, $limit = null,
+        ParamBag $params = null
+    ) {
+        // Support alternate syntax with ParamBag as first parameter:
+        if ($field instanceof ParamBag && $params === null) {
+            $params = $field;
+            $field = null;
+        }
+
+        // Create empty ParamBag if none provided:
         $params = $params ?: new ParamBag();
         $this->injectResponseWriter($params);
 
+        // Always enable terms:
         $params->set('terms', 'true');
-        $params->set('terms.fl', $field);
-        $params->set('terms.lower', $start);
-        $params->set('terms.limit', $limit);
-        $params->set('terms.lower.incl', 'false');
-        $params->set('terms.sort', 'index');
+
+        // Use parameters if provided:
+        if (null !== $field) {
+            $params->set('terms.fl', $field);
+        }
+        if (null !== $start) {
+            $params->set('terms.lower', $start);
+        }
+        if (null !== $limit) {
+            $params->set('terms.limit', $limit);
+        }
+
+        // Set defaults unless overridden:
+        if (!$params->hasParam('terms.lower.incl')) {
+            $params->set('terms.lower.incl', 'false');
+        }
+        if (!$params->hasParam('terms.sort')) {
+            $params->set('terms.sort', 'index');
+        }
 
         $response = $this->connector->terms($params);
-        $terms    = new Terms($this->deserialize($response));
+        $terms = new Terms($this->deserialize($response));
         return $terms;
     }
 

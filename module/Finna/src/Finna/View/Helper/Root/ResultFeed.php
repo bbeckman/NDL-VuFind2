@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  View_Helpers
@@ -121,14 +121,13 @@ class ResultFeed extends \VuFind\View\Helper\Root\ResultFeed
         $urlHelper = $this->getView()->plugin('url');
         $recordHelper = $this->getView()->plugin('record');
         $recordImage = $this->getView()->plugin('recordImage');
-        $imageUrl = $recordImage($recordHelper($record))->getLargeImage();
+        $imageUrl = $recordImage($recordHelper($record))->getLargeImage()
+            . '&imgext=.jpeg';
         $entry->setEnclosure(
             [
                 'uri' => $serverUrl($imageUrl),
                 'type' => 'image/jpeg',
-                // TODO: this should be zero, but the item renderer doesn't currently
-                // allow that (see https://github.com/zendframework/zend-feed/pull/5)
-                'length' => 1
+                'length' => 0
             ]
         );
         $entry->setCommentCount(count($record->getComments()));

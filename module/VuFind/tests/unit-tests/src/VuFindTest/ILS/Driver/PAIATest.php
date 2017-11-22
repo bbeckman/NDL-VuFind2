@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Tests
@@ -27,12 +27,13 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFindTest\ILS\Driver;
-use VuFind\ILS\Driver\PAIA;
-
-use Zend\Http\Client\Adapter\Test as TestAdapter;
-use Zend\Http\Response as HttpResponse;
 
 use InvalidArgumentException;
+
+use VuFind\ILS\Driver\PAIA;
+use Zend\Http\Client\Adapter\Test as TestAdapter;
+
+use Zend\Http\Response as HttpResponse;
 
 /**
  * ILS driver test
@@ -120,7 +121,7 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
                 'createdate' => '06-07-2016',
                 'duedate' => '',
                 'id' => '',
-                'title' => null,
+                'title' => 'Open source licensing : software freedom and intellectual property law ; [open source licensees are free to: use open source software for any purpose, make and distribute copies, create and distribute derivative works, access and use the source code, com / Rosen, Lawrence (c 2005)',
                 'feeid' => null,
                 'about' => 'Open source licensing : software freedom and intellectual property law ; [open source licensees are free to: use open source software for any purpose, make and distribute copies, create and distribute derivative works, access and use the source code, com / Rosen, Lawrence (c 2005)',
                 'item' => 'http://uri.gbv.de/document/opac-de-830:bar:830$28295402'
@@ -134,7 +135,7 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
                 'createdate' => '05-23-2016',
                 'duedate' => '',
                 'id' => '',
-                'title' => null,
+                'title' => 'Zend framework in action / Allen, Rob (2009)',
                 'feeid' => null,
                 'about' => 'Zend framework in action / Allen, Rob (2009)',
                 'item' => 'http://uri.gbv.de/document/opac-de-830:bar:830$28323471'
@@ -148,7 +149,7 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
                 'createdate' => '05-23-2016',
                 'duedate' => '',
                 'id' => '',
-                'title' => null,
+                'title' => 'Unsere historischen Gärten / Lutze, Margot (1986)',
                 'feeid' => null,
                 'about' => 'Unsere historischen Gärten / Lutze, Margot (1986)',
                 'item' => 'http://uri.gbv.de/document/opac-de-830:bar:830$24476416'
@@ -162,7 +163,7 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
                 'createdate' => '06-16-2016',
                 'duedate' => '',
                 'id' => '',
-                'title' => null,
+                'title' => 'Triumphe des Backsteins = Triumphs of brick / (1992)',
                 'feeid' => null,
                 'about' => 'Triumphe des Backsteins = Triumphs of brick / (1992)',
                 'item' => 'http://uri.gbv.de/document/opac-de-830:bar:830$33204941'
@@ -176,7 +177,7 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
                 'createdate' => '05-23-2016',
                 'duedate' => '',
                 'id' => '',
-                'title' => null,
+                'title' => 'Lehrbuch der Botanik / Strasburger, Eduard (2008)',
                 'feeid' => null,
                 'about' => 'Lehrbuch der Botanik / Strasburger, Eduard (2008)',
                 'item' => 'http://uri.gbv.de/document/opac-de-830:bar:830$26461872'
@@ -292,13 +293,13 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
     protected $profileTestResult = [
         'firstname' => "Nobody",
         'lastname' => "Nothing",
-        'address1' => NULL,
-        'address2' => NULL,
-        'city' => NULL,
-        'country' => NULL,
-        'zip' => NULL,
-        'phone' => NULL,
-        'group' => NULL,
+        'address1' => null,
+        'address2' => null,
+        'city' => null,
+        'country' => null,
+        'zip' => null,
+        'phone' => null,
+        'group' => null,
         'expires' => "12-31-9999",
         'statuscode' => 0,
         'canWrite' => true
@@ -458,6 +459,7 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
         $this->assertEquals(false, $result_expired);
         $this->assertEquals(false, $resultStorage_expired);
     }
+
     /**
      * Test
      *
@@ -538,14 +540,14 @@ class PAIATest extends \VuFindTest\Unit\ILSDriverTestCase
 
         $this->assertEquals($this->renewTestResult, $result);
 
-    /* TODO: make me work
-        $conn_fail = $this->createConnector('renew_error.json');
-        $connfail->setConfig($this->validConfig);
-        $conn_fail->init();
-        $result_fail = $conn_fail->renewMyItems($renew_request);
+        /* TODO: make me work
+            $conn_fail = $this->createConnector('renew_error.json');
+            $connfail->setConfig($this->validConfig);
+            $conn_fail->init();
+            $result_fail = $conn_fail->renewMyItems($renew_request);
 
-        $this->assertEquals($this->failedRenewTestResult, $result_fail);
-    */
+            $this->assertEquals($this->failedRenewTestResult, $result_fail);
+        */
     }
 
     /**

@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Authentication
@@ -71,7 +71,12 @@ class Shibboleth extends \VuFind\Auth\Shibboleth
         foreach ($this->getRequiredAttributes() as $key => $value) {
             $attrValue = $this->getServerParam($request, $key);
             if (!preg_match('/' . $value . '/', $attrValue)) {
-                throw new AuthException('authentication_error_denied');
+                $this->logError(
+                    "Shibboleth login failed for request: attribute '$key' contents"
+                    . " '$attrValue' did not match regexp /$value/ in request: "
+                    . print_r($request->getServer()->toArray(), true)
+                );
+                throw new AuthException('authentication_error_invalid_attributes');
             }
         }
 

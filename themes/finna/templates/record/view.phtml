@@ -27,8 +27,11 @@
   $this->headMeta()->appendName('format-detection', 'telephone=no');
 
   // Set page title.
-  $dataSource = $this->driver->tryMethod('getDataSource');
-  $headText = $this->driver->getBreadcrumb() . (isset($dataSource) ? ' | ' . $this->transEsc('default::source_'. $dataSource, null, $dataSource) : '');
+  $headText = $this->driver->getBreadcrumb();
+  $organisationName = $this->organisationDisplayName($this->driver);
+  if (!empty($organisationName)) {
+     $headText .= " | $organisationName";
+  }
   $this->headTitle($headText);
 
   // Add map css if necessary:
@@ -47,18 +50,18 @@
 </div>
 <div class="container-fluid record-view-header">
  <div class="container">
-  <div class="row">
-    <div class="col-xs-4 col-sm-5 hidden-print">
+  <div class="search-tools">
+    <div class="record-back hidden-print">
     <?
       $html = '<span class="btn btn-primary"><i class="fa fa-arrow-left"></i> <i class="fa fa-search"></i></span>';
-      $html .= '<span class="back-to-search-text hidden-xs">'.$this->transEsc('Back to search results').'</span>';
+      $html .= '<span class="back-to-search-text hidden-xs">' . $this->transEsc('Back to search results') . '</span>';
       $previousSearch = $this->searchMemory()->getLastSearchLink($html);
       if ($previousSearch !== ''):
     ?>
       <div class="back-to-search"><?=$previousSearch?></div>
     <? endif; ?>
     </div>
-    <div class="col-xs-8 col-sm-7">
+    <div>
     <? if (isset($this->scrollData) && ($this->scrollData['previousRecord'] || $this->scrollData['nextRecord'])): ?>
       <ul class="pager hidden-print" id="view-pager">
       <? if ($this->scrollData['previousRecord']): ?>
@@ -76,7 +79,12 @@
         <? endif; ?>
         <li class="disabled" title="<?=$this->transEsc('Previous Record')?>"><a><i class="fa fa-arrow-left"></i></a></li>
       <? endif; ?>
-        <li class="pager-text"><?=$this->localizedNumber($this->scrollData['currentPosition']) . ' / ' . $this->localizedNumber($this->scrollData['resultTotal']) ?></li>
+      <li class="pager-text">
+        <?=$this->transEsc('of_num_results', [
+          '%%position%%' => $this->localizedNumber($this->scrollData['currentPosition']),
+          '%%total%%' => $this->localizedNumber($this->scrollData['resultTotal'])
+        ]) ?>
+      </li>
       <? if ($this->scrollData['nextRecord']): ?>
         <li class="pager-next-record">
           <a href="<?=$this->recordLink()->getUrl($this->scrollData['nextRecord'])?>" rel="nofollow"><i class="fa fa-arrow-right"></i><span class="sr-only"><?=$this->transEsc('Next Record')?></span></a>
@@ -99,11 +107,11 @@
  </div>
 </div>
 <div class="container">
-<div class="record source<?=$this->escapeHtmlAttr($this->driver->getSourceIdentifier())?> row record-row">
-  <div class="col-xs-12">
+<div class="record source<?=$this->escapeHtmlAttr($this->driver->getSourceIdentifier())?> record-row">
+  <div>
       <?=$this->record($this->driver)->getToolbar()?>
   </div>
-  <div class="col-sm-9">
+  <div class="mainbody left">
     <input type="hidden" value="<?=$this->escapeHtmlAttr($this->driver->getUniqueId())?>" class="hiddenId" />
     <input type="hidden" value="<?=$this->escapeHtmlAttr($this->driver->getSourceIdentifier()) ?>" class="hiddenSource" />
     <?=$this->flashmessages()?>
@@ -153,21 +161,19 @@
       </div>
     </div>
 
-    <?=$this->driver->supportsCoinsOpenURL()?'<span class="Z3988" title="'.$this->escapeHtmlAttr($this->driver->getCoinsOpenURL()).'"></span>':''?>
+    <?=$this->driver->supportsCoinsOpenURL()?'<span class="Z3988" title="' . $this->escapeHtmlAttr($this->driver->getCoinsOpenURL()) . '"></span>':''?>
   </div>
 
-  <div class="col-sm-3 sidebar">
-    <? if ($this->resolver('record/record-organisation-menu.phtml') && $this->driver->getSourceIdentifier() == 'Solr' && $this->driver->getRecordType() != 'lido' && $this->driver->getRecordType() != 'ead'): ?>
+  <div class="sidebar right">
+    <? if ($this->resolver('record/record-organisation-menu.phtml') && $this->driver->getSourceIdentifier() == 'Solr' && !in_array($this->driver->getRecordType(), ['lido', 'ead', 'forward'])): ?>
       <?=$this->render('record/record-organisation-menu.phtml') ?>
     <? endif; ?>
     <? foreach ($this->related()->getList($this->driver) as $current): ?>
       <?=$this->related()->render($current)?>
     <? endforeach; ?>
     <? if ($template = $this->content()->findTemplateForLng("content/Additions/record-post-recommendations")): ?>
-      <div class="row">
-        <div class="col-xs-12">
-          <?=$this->render($template)?>
-        </div>
+      <div>
+        <?=$this->render($template)?>
       </div>
     <? endif; ?>
   </div>

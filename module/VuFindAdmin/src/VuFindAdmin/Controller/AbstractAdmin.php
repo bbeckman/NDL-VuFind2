@@ -26,7 +26,9 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFindAdmin\Controller;
+
 use Zend\Mvc\MvcEvent;
+use Zend\ServiceManager\ServiceLocatorInterface;
 
 /**
  * VuFind Admin Controller Base
@@ -41,10 +43,12 @@ class AbstractAdmin extends \VuFind\Controller\AbstractBase
 {
     /**
      * Constructor
+     *
+     * @param ServiceLocatorInterface $sm Service locator
      */
-    public function __construct()
+    public function __construct(ServiceLocatorInterface $sm)
     {
-        parent::__construct();
+        parent::__construct($sm);
         $this->accessPermission = 'access.AdminModule';
     }
 
@@ -70,7 +74,7 @@ class AbstractAdmin extends \VuFind\Controller\AbstractBase
         // Block access to everyone when module is disabled:
         $config = $this->getConfig();
         if (!isset($config->Site->admin_enabled) || !$config->Site->admin_enabled) {
-            $pluginManager  = $this->getServiceLocator()
+            $pluginManager  = $this->serviceLocator
                 ->get('Zend\Mvc\Controller\PluginManager');
             $redirectPlugin = $pluginManager->get('redirect');
             return $redirectPlugin->toRoute('admin/disabled');

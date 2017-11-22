@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Controller
@@ -27,8 +27,8 @@
  */
 namespace Finna\Controller;
 
-use Finna\Search\Solr\Options,
-    VuFindCode\ISBN;
+use Finna\Search\Solr\Options;
+use VuFindCode\ISBN;
 
 /**
  * Redirects the user to the appropriate default VuFind action.
@@ -207,6 +207,8 @@ class SearchController extends \VuFind\Controller\SearchController
         $view = parent::resultsAction();
         $view->browse = false;
         $this->initSavedTabs();
+        $view->fromStreetSearch = $this->getRequest()->getQuery()
+            ->get('streetsearch', false);
         return $view;
     }
 
@@ -221,6 +223,45 @@ class SearchController extends \VuFind\Controller\SearchController
     }
 
     /**
+     * StreetSearch action alias.
+     *
+     * @return \Zend\View\Model\ViewModel
+     */
+    public function streetAction()
+    {
+        return $this->forwardTo('Search', 'StreetSearch');
+    }
+
+    /**
+     * Save a search to the history in the database.
+     * Save search Id and type to memory
+     *
+     * @param \VuFind\Search\Base\Results $results Search results
+     *
+     * @return void
+     */
+    public function saveSearchToHistory($results)
+    {
+        parent::saveSearchToHistory($results);
+        $this->getSearchMemory()->rememberSearchData(
+            $results->getSearchId(),
+            $results->getParams()->getSearchType(),
+            $results->getUrlQuery()->isQuerySuppressed()
+                ? '' : $results->getParams()->getDisplayQuery()
+        );
+    }
+
+    /**
+     * Get the search memory
+     *
+     * @return \Finna\Search\Memory
+     */
+    public function getSearchMemory()
+    {
+        return $this->serviceLocator->get('Finna\Search\Memory');
+    }
+
+    /**
      * Handler for database and journal browse actions.
      *
      * @param string $type Browse type
@@ -229,7 +270,7 @@ class SearchController extends \VuFind\Controller\SearchController
      */
     protected function browse($type)
     {
-        $config = $this->getServiceLocator()->get('VuFind\Config')->get('browse');
+        $config = $this->serviceLocator->get('VuFind\Config')->get('browse');
         if (!isset($config['General'][$type]) || !$config['General'][$type]) {
             throw new \Exception("Browse action $type is disabled");
         }
@@ -239,7 +280,7 @@ class SearchController extends \VuFind\Controller\SearchController
         }
 
         // Preserve last result view
-        $configLoader = $this->getServiceLocator()->get('VuFind\Config');
+        $configLoader = $this->serviceLocator->get('VuFind\Config');
         $options = new Options($configLoader);
 
         $config = $config[$type];
@@ -319,7 +360,7 @@ class SearchController extends \VuFind\Controller\SearchController
                 $isbn = isset($request['rft_isbn']) ? $request['rft_isbn'] : '';
                 if (isset($request['rft_btitle'])) {
                     $title = $request['rft_btitle'];
-                } else if (isset($request['rft_title'])) {
+                } elseif (isset($request['rft_title'])) {
                     $title = $request['rft_title'];
                 }
             } else {
@@ -330,7 +371,7 @@ class SearchController extends \VuFind\Controller\SearchController
                     ? $request['rft_atitle'] : '';
                 if (isset($request['rft_jtitle'])) {
                     $title = $request['rft_jtitle'];
-                } else if (isset($request['rft_title'])) {
+                } elseif (isset($request['rft_title'])) {
                     $title = $request['rft_title'];
                 }
             }
@@ -339,7 +380,7 @@ class SearchController extends \VuFind\Controller\SearchController
             }
             if (isset($request['rft_aufirst'])) {
                 $author .= ' ' . $request['rft_aufirst'];
-            } else if (isset($request['rft_auinit'])) {
+            } elseif (isset($request['rft_auinit'])) {
                 $author .= ' ' . $request['rft_auinit'];
             }
             $issn = isset($request['rft_issn']) ? $request['rft_issn'] : '';
@@ -358,9 +399,9 @@ class SearchController extends \VuFind\Controller\SearchController
             $atitle = isset($request['atitle']) ? $request['atitle'] : '';
             if (isset($request['jtitle'])) {
                 $title = $request['jtitle'];
-            } else if (isset($request['btitle'])) {
+            } elseif (isset($request['btitle'])) {
                 $title = $request['btitle'];
-            } else if (isset($request['title'])) {
+            } elseif (isset($request['title'])) {
                 $title = $request['title'];
             }
             if (isset($request['aulast'])) {
@@ -368,7 +409,7 @@ class SearchController extends \VuFind\Controller\SearchController
             }
             if (isset($request['aufirst'])) {
                 $author .= ' ' . $request['aufirst'];
-            } else if (isset($request['auinit'])) {
+            } elseif (isset($request['auinit'])) {
                 $author .= ' ' . $request['auinit'];
             }
         }
@@ -396,7 +437,7 @@ class SearchController extends \VuFind\Controller\SearchController
      */
     protected function processOpenURL($params, $hiddenFilters = [])
     {
-        $runner = $this->getServiceLocator()->get('VuFind\SearchRunner');
+        $runner = $this->serviceLocator->get('VuFind\SearchRunner');
         $results = false;
 
         // Journal first..

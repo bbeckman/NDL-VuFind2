@@ -4,7 +4,7 @@
  *
  * PHP version 5
  *
- * Copyright (C) The National Library of Finland 2015.
+ * Copyright (C) The National Library of Finland 2015-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  ILS_Drivers
@@ -27,9 +27,11 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace Finna\ILS\Driver;
-use VuFind\Exception\ILS as ILSException,
-    Finna\ILS\SIP2,
-    PDO;
+
+use Finna\ILS\SIP2;
+use PDO;
+use VuFind\Exception\ILS as ILSException;
+use Zend\Validator\EmailAddress as EmailAddressValidator;
 
 /**
  * Voyager/VoyagerRestful Common Trait
@@ -79,9 +81,7 @@ trait VoyagerFinna
                 }
 
                 // If we've encountered a new status code, we should track it:
-                if (!in_array(
-                    $row['STATUS'], $record['STATUS_ARRAY']
-                )) {
+                if (!in_array($row['STATUS'], $record['STATUS_ARRAY'])) {
                     $record['STATUS_ARRAY'][] = $row['STATUS'];
                 }
             } else {
@@ -182,7 +182,6 @@ trait VoyagerFinna
             $where = array_merge(
                 $where, ["LINE_ITEM_STATUS.LINE_ITEM_STATUS_DESC in ($statuses)"]
             );
-
         }
 
         if (!empty($this->config['Holdings']['order_formats'])) {
@@ -205,7 +204,6 @@ trait VoyagerFinna
                     "BIB_TEXT.BIB_FORMAT in ($formats)"
                 ]
             );
-
         }
 
         $sqlArray = [
@@ -466,7 +464,7 @@ trait VoyagerFinna
                     'secondary_login_field_label' => $label
                 ];
             }
-        } else if ($function == 'onlinePayment'
+        } elseif ($function == 'onlinePayment'
             && isset($this->config['OnlinePayment'])
         ) {
             return $this->config['OnlinePayment'];
@@ -476,6 +474,90 @@ trait VoyagerFinna
             return parent::getConfig($function, $params);
         }
         return false;
+    }
+
+    /**
+     * Get Patron Profile
+     *
+     * This is responsible for retrieving the profile for a specific patron.
+     *
+     * @param array $patron The patron array
+     *
+     * @throws ILSException
+     * @return array        Array of the patron's profile data on success.
+     */
+    public function getMyProfile($patron)
+    {
+        $sql = "SELECT PATRON.LAST_NAME, PATRON.FIRST_NAME, " .
+               "PATRON.HISTORICAL_CHARGES, PATRON_ADDRESS.ADDRESS_LINE1, " .
+               "PATRON_ADDRESS.ADDRESS_LINE2, PATRON_ADDRESS.ZIP_POSTAL, " .
+               "PATRON_ADDRESS.CITY, PATRON_ADDRESS.COUNTRY, " .
+               "PATRON_PHONE.PHONE_NUMBER, PATRON_GROUP.PATRON_GROUP_NAME, " .
+               "to_char(PATRON.EXPIRE_DATE, 'MM-DD-YYYY') as EXPIRE_DATE " .
+               "FROM $this->dbName.PATRON, $this->dbName.PATRON_ADDRESS, " .
+               "$this->dbName.PATRON_PHONE, $this->dbName.PATRON_BARCODE, " .
+               "$this->dbName.PATRON_GROUP " .
+               "WHERE PATRON.PATRON_ID = PATRON_ADDRESS.PATRON_ID (+) " .
+               "AND PATRON_ADDRESS.ADDRESS_ID = PATRON_PHONE.ADDRESS_ID (+) " .
+               "AND PATRON.PATRON_ID = PATRON_BARCODE.PATRON_ID (+) " .
+               "AND PATRON_BARCODE.PATRON_GROUP_ID = " .
+               "PATRON_GROUP.PATRON_GROUP_ID (+) " .
+               "AND PATRON.PATRON_ID = :id";
+        try {
+            $sqlStmt = $this->executeSQL($sql, [':id' => $patron['id']]);
+            $patron = [];
+            while ($row = $sqlStmt->fetch(PDO::FETCH_ASSOC)) {
+                if (!empty($row['FIRST_NAME'])) {
+                    $patron['firstname'] = utf8_encode($row['FIRST_NAME']);
+                }
+                if (!empty($row['LAST_NAME'])) {
+                    $patron['lastname'] = utf8_encode($row['LAST_NAME']);
+                }
+                if (!empty($row['PHONE_NUMBER'])) {
+                    $patron['phone'] = utf8_encode($row['PHONE_NUMBER']);
+                }
+                if (!empty($row['PATRON_GROUP_NAME'])) {
+                    $patron['group'] = utf8_encode($row['PATRON_GROUP_NAME']);
+                }
+                $validator = new EmailAddressValidator();
+                $addr1 = utf8_encode($row['ADDRESS_LINE1']);
+                if ($validator->isValid($addr1)) {
+                    $patron['email'] = $addr1;
+                } elseif (!isset($patron['address1'])) {
+                    if (!empty($addr1)) {
+                        $patron['address1'] = $addr1;
+                    }
+                    if (!empty($row['ADDRESS_LINE2'])) {
+                        $patron['address2'] = utf8_encode($row['ADDRESS_LINE2']);
+                    }
+                    if (!empty($row['ZIP_POSTAL'])) {
+                        $patron['zip'] = utf8_encode($row['ZIP_POSTAL']);
+                    }
+                    if (!empty($row['CITY'])) {
+                        $patron['city'] = utf8_encode($row['CITY']);
+                    }
+                    if (!empty($row['COUNTRY'])) {
+                        $patron['country'] = utf8_encode($row['COUNTRY']);
+                    }
+                }
+                if (!empty($row['EXPIRE_DATE'])) {
+                    $patron['expiration_date']
+                        = $this->dateFormat->convertToDisplayDate(
+                            'm-d-Y', $row['EXPIRE_DATE']
+                        );
+                    $date = $this->dateFormat->convertFromDisplayDate(
+                        'U', $patron['expiration_date']
+                    );
+                    $dateLimit = strtotime('+10 years');
+                    if ($date > $dateLimit) {
+                        unset($patron['expiration_date']);
+                    }
+                }
+            }
+            return empty($patron) ? null : $patron;
+        } catch (PDOException $e) {
+            throw new ILSException($e->getMessage());
+        }
     }
 
     /**
@@ -518,7 +600,7 @@ trait VoyagerFinna
                 if (!$fine['payableOnline'] && !$fine['accruedFine']) {
                     $nonPayableReason
                         = 'online_payment_fines_contain_nonpayable_fees';
-                } else if ($fine['payableOnline']) {
+                } elseif ($fine['payableOnline']) {
                     $amount += $fine['balance'];
                 }
             }
@@ -534,6 +616,11 @@ trait VoyagerFinna
             }
             return $res;
         }
+        return [
+            'payable' => false,
+            'amount' => 0,
+            'reason' => 'online_payment_minimum_fee'
+        ];
     }
 
     /**
@@ -541,13 +628,14 @@ trait VoyagerFinna
      *
      * This is called after a successful online payment.
      *
-     * @param array $patron Patron.
-     * @param int   $amount Amount to be registered as paid.
+     * @param array  $patron        Patron.
+     * @param int    $amount        Amount to be registered as paid.
+     * @param string $transactionId Transaction ID.
      *
      * @throws ILSException
      * @return boolean success
      */
-    public function markFeesAsPaid($patron, $amount)
+    public function markFeesAsPaid($patron, $amount, $transactionId)
     {
         $params
             = isset($this->config['OnlinePayment']['registrationParams'])
@@ -695,6 +783,20 @@ trait VoyagerFinna
         $sql .= " FROM $this->dbName.PATRON, $this->dbName.PATRON_BARCODE " .
                "WHERE PATRON.PATRON_ID = PATRON_BARCODE.PATRON_ID AND " .
                "lower(PATRON_BARCODE.PATRON_BARCODE) = :barcode";
+
+        // Limit the barcode statuses that allow logging in. By default only
+        // 1 (active) and 4 (expired) are allowed.
+        $allowedStatuses = preg_replace(
+            '/[^:\d]*/',
+            '',
+            isset($this->config['Catalog']['allowed_barcode_statuses'])
+                ? $this->config['Catalog']['allowed_barcode_statuses']
+                : '1:4'
+        );
+        if ($allowedStatuses) {
+            $sql .= ' AND PATRON_BARCODE.BARCODE_STATUS IN ('
+                . str_replace(':', ',', $allowedStatuses) . ')';
+        }
 
         try {
             $bindBarcode = strtolower(utf8_decode($barcode));
@@ -853,7 +955,24 @@ trait VoyagerFinna
     protected function executeSQL($sql, $bind = [])
     {
         $startTime = microtime(true);
-        $result = parent::executeSQL($sql, $bind);
+        try {
+            $result = parent::executeSQL($sql, $bind);
+        } catch (\PDOException $e) {
+            if ($e->getCode() != 3135) {
+                $this->error(
+                    "Re-throwing PDO exception in {$this->dbName}, code: "
+                    . $e->getCode() . ', message: ' . $e->getMessage()
+                );
+                throw $e;
+            }
+
+            $this->error(
+                "PDO connection to {$this->dbName} lost ("
+                . $e->getMessage() . '), retrying...'
+            );
+            $this->lazyDb = null;
+            $result = parent::executeSQL($sql, $bind);
+        }
         if (!empty($this->config['Debug']['durationLogPrefix'])) {
             list(, $caller) = debug_backtrace(false);
             file_put_contents(

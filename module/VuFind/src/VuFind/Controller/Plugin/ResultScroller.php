@@ -26,8 +26,10 @@
  * @link     https://vufind.org/wiki/development Wiki
  */
 namespace VuFind\Controller\Plugin;
-use Zend\Mvc\Controller\Plugin\AbstractPlugin,
-    Zend\Session\Container as SessionContainer;
+
+use VuFind\Search\Results\PluginManager as ResultsManager;
+use Zend\Mvc\Controller\Plugin\AbstractPlugin;
+use Zend\Session\Container as SessionContainer;
 
 /**
  * Class for managing "next" and "previous" navigation within result sets.
@@ -55,17 +57,28 @@ class ResultScroller extends AbstractPlugin
     protected $data;
 
     /**
+     * Results manager
+     *
+     * @var ResultsManager
+     */
+    protected $resultsManager;
+
+    /**
      * Constructor. Create a new search result scroller.
      *
      * @param SessionContainer $session Session container
+     * @param ResultsManager   $rm      Results manager
      * @param bool             $enabled Is the scroller enabled?
      */
-    public function __construct(SessionContainer $session, $enabled = true)
-    {
+    public function __construct(SessionContainer $session, ResultsManager $rm,
+        $enabled = true
+    ) {
         $this->enabled = $enabled;
 
         // Set up session namespace for the class.
         $this->data = $session;
+
+        $this->resultsManager = $rm;
     }
 
     /**
@@ -88,6 +101,7 @@ class ResultScroller extends AbstractPlugin
         $this->data->searchId = $searchObject->getSearchId();
         $this->data->page = $searchObject->getParams()->getPage();
         $this->data->limit = $searchObject->getParams()->getLimit();
+        $this->data->sort = $searchObject->getParams()->getSort();
         $this->data->total = $searchObject->getResultTotal();
         $this->data->firstlast = $searchObject->getOptions()
             ->supportsFirstLastNavigation();
@@ -358,7 +372,7 @@ class ResultScroller extends AbstractPlugin
         if (count($this->data->currIds) > 1) {
             $pos = count($this->data->currIds) - 2;
             $retVal['previousRecord'] = $this->data->currIds[$pos];
-        } else if (count($this->data->prevIds) > 0) {
+        } elseif (count($this->data->prevIds) > 0) {
             $prevPos = count($this->data->prevIds) - 1;
             $retVal['previousRecord'] = $this->data->prevIds[$prevPos];
         }
@@ -471,11 +485,11 @@ class ResultScroller extends AbstractPlugin
                     // the current record is somewhere in the middle of the current
                     // page, ie: not first or last
                     return $this->scrollOnCurrentPage($retVal, $pos);
-                } else if ($pos == 0) {
+                } elseif ($pos == 0) {
                     // this record is first record on the current page
                     return $this
                         ->fetchPreviousPage($retVal, $lastSearch, $pos, $count);
-                } else if ($pos == $count - 1) {
+                } elseif ($pos == $count - 1) {
                     // this record is last record on the current page
                     return $this->fetchNextPage($retVal, $lastSearch, $pos);
                 }
@@ -524,7 +538,7 @@ class ResultScroller extends AbstractPlugin
      */
     protected function fetchPage($searchObject, $page = null)
     {
-        if (!is_null($page)) {
+        if (null !== $page) {
             $searchObject->getParams()->setPage($page);
             $searchObject->performAndProcessSearch();
         }
@@ -552,12 +566,11 @@ class ResultScroller extends AbstractPlugin
             $row = $searchTable->getRowById($this->data->searchId, false);
             if (!empty($row)) {
                 $minSO = $row->getSearchObject();
-                $manager = $this->getController()->getServiceLocator()
-                    ->get('VuFind\SearchResultsPluginManager');
-                $search = $minSO->deminify($manager);
-                // The saved search does not remember its original limit;
-                // we should reapply it from the session data:
+                $search = $minSO->deminify($this->resultsManager);
+                // The saved search does not remember its original limit or sort;
+                // we should reapply them from the session data:
                 $search->getParams()->setLimit($this->data->limit);
+                $search->getParams()->setSort($this->data->sort);
                 return $search;
             }
         }

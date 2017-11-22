@@ -26,6 +26,7 @@
  * @link     https://vufind.org/wiki/development
  */
 namespace VuFindConsole;
+
 use Zend\Console\Adapter\AdapterInterface as Console;
 
 /**
@@ -37,7 +38,8 @@ use Zend\Console\Adapter\AdapterInterface as Console;
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org/wiki/development
  */
-class Module implements \Zend\ModuleManager\Feature\ConsoleUsageProviderInterface
+class Module implements \Zend\ModuleManager\Feature\ConsoleUsageProviderInterface,
+    \Zend\ModuleManager\Feature\ConsoleBannerProviderInterface
 {
     /**
      * Get module configuration
@@ -66,6 +68,24 @@ class Module implements \Zend\ModuleManager\Feature\ConsoleUsageProviderInterfac
     }
 
     /**
+     * Returns a string containing a banner text, that describes the module and/or
+     * the application.
+     * The banner is shown in the console window, when the user supplies invalid
+     * command-line parameters or invokes the application with no parameters.
+     *
+     * The method is called with active Zend\Console\Adapter\AdapterInterface that
+     * can be used to directly access Console and send output.
+     *
+     * @param Console $console Console adapter
+     *
+     * @return string|null
+     */
+    public function getConsoleBanner(Console $console)
+    {
+        return 'VuFind';
+    }
+
+    /**
      * Return usage information
      *
      * @param Console $console Console adapter
@@ -77,11 +97,13 @@ class Module implements \Zend\ModuleManager\Feature\ConsoleUsageProviderInterfac
     public function getConsoleUsage(Console $console)
     {
         return [
+            'compile theme' => 'Flatten a theme hierarchy for improved performance',
             'generate dynamicroute' => 'Add a dynamic route',
             'generate extendservice' => 'Override a service with a new child class',
             'generate nontabrecordaction' => 'Add routes for non-tab record action',
             'generate recordroute' => 'Add a record route',
             'generate staticroute' => 'Add a static route',
+            'generate theme' => 'Create and configure a new theme',
             'harvest harvest_oai' => 'OAI-PMH harvester',
             'harvest merge-marc' => 'MARC merge tool',
             'import import-xsl' => 'XSLT importer',

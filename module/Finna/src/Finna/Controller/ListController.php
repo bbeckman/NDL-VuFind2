@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Controller
@@ -27,9 +27,9 @@
  */
 namespace Finna\Controller;
 
-use VuFind\Exception\ListPermission as ListPermissionException,
-    VuFind\Exception\RecordMissing as RecordMissingException,
-    Zend\Stdlib\Parameters;
+use VuFind\Exception\ListPermission as ListPermissionException;
+use VuFind\Exception\RecordMissing as RecordMissingException;
+use Zend\Stdlib\Parameters;
 
 /**
  * Controller for the user account area.
@@ -58,13 +58,12 @@ class ListController extends \Finna\Controller\MyResearchController
             if (!$list->isPublic()) {
                 return $this->createNoAccessView();
             }
-
         } catch (RecordMissingException $e) {
             return $this->notFoundAction();
         }
 
         try {
-            $results = $this->getServiceLocator()
+            $results = $this->serviceLocator
                 ->get('VuFind\SearchResultsPluginManager')->get('Favorites');
             $params = $results->getParams();
 
@@ -102,6 +101,8 @@ class ListController extends \Finna\Controller\MyResearchController
                 $response->setContent($feed->export('rss'));
                 return $response;
             }
+
+            $this->rememberCurrentSearchUrl();
 
             $view = $this->createViewModel(
                 [
@@ -144,11 +145,10 @@ class ListController extends \Finna\Controller\MyResearchController
      */
     protected function createNoAccessView()
     {
-        $config = $this->getServiceLocator()->get('VuFind\Config')->get('config');
+        $config = $this->serviceLocator->get('VuFind\Config')->get('config');
         $view = $this->createViewModel();
         $view->setTemplate('list/no_access');
         $view->email = $config->Site->email;
         return $view;
     }
-
 }

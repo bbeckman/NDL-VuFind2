@@ -26,6 +26,7 @@
  * @link     https://vufind.org/wiki/development:testing:unit_tests Wiki
  */
 namespace VuFindTest\View\Helper\Root;
+
 use VuFind\View\Helper\Root\SafeMoneyFormat;
 
 /**
@@ -80,7 +81,7 @@ class SafeMoneyFormatTest extends \PHPUnit_Framework_TestCase
     public function testFormatting()
     {
         $escaper = new \Zend\View\Helper\EscapeHtml();
-        $view = $this->getMock('Zend\View\Renderer\PhpRenderer');
+        $view = $this->createMock('Zend\View\Renderer\PhpRenderer');
         $view->expects($this->any())->method('plugin')
             ->with($this->equalTo('escapeHtml'))
             ->will($this->returnValue($escaper));

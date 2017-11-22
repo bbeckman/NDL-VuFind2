@@ -17,11 +17,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Service
  * @author   Samuli Sillanpää <samuli.sillanpaa@helsinki.fi>
+ * @author   Ere Maijala <ere.maijala@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
@@ -29,10 +30,6 @@ namespace FinnaConsole\Service;
 
 use Finna\Db\Row\User;
 use Finna\Db\Table\Search;
-use Finna\Search\Solr\Options;
-use Finna\Search\Solr\Params;
-use Finna\Search\UrlQueryHelper;
-use VuFind\Date\Converter as DateConverter;
 use Zend\Config\Config;
 use Zend\Config\Reader\Ini as IniReader;
 use Zend\ServiceManager\ServiceManager;
@@ -56,6 +53,7 @@ use Zend\Stdlib\Parameters;
  * @category VuFind
  * @package  Service
  * @author   Samuli Sillanpää <samuli.sillanpaa@helsinki.fi>
+ * @author   Ere Maijala <ere.maijala@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
@@ -172,15 +170,23 @@ class ScheduledAlerts extends AbstractService
     {
         $this->collectScriptArguments($arguments);
 
-        if (!$this->localDir = getenv('VUFIND_LOCAL_DIR')) {
-            $this->msg('Switching to VuFind configuration');
-            $this->switchInstitution($this->baseDir);
-        } else if (!$this->scheduleBaseUrl) {
-            $this->processAlerts();
-            exit(0);
-        } else {
-            $this->processViewAlerts();
-            exit(0);
+        try {
+            if (!$this->localDir = getenv('VUFIND_LOCAL_DIR')) {
+                $this->msg('Switching to VuFind configuration');
+                $this->switchInstitution($this->baseDir);
+            } elseif (!$this->scheduleBaseUrl) {
+                $this->processAlerts();
+                exit(0);
+            } else {
+                $this->processViewAlerts();
+                exit(0);
+            }
+        } catch (\Exception $e) {
+            $this->err("Exception: " . $e->getMessage());
+            while ($e = $e->getPrevious()) {
+                $this->err("  Previous exception: " . $e->getMessage());
+            }
+            exit(1);
         }
     }
 
@@ -259,17 +265,16 @@ class ScheduledAlerts extends AbstractService
     protected function switchInstitution($localDir, $scheduleBaseUrl = false)
     {
         $appDir = substr($localDir, 0, strrpos($localDir, "/{$this->confDir}"));
-        $script = "$appDir/util/scheduled_alerts.php";
+        $script = "$appDir/public/index.php";
 
-        $args = [];
-        $args[] = $this->viewBaseDir;
-        $args[] = $localDir;
+        $args = ['util', 'scheduled_alerts', $this->viewBaseDir, $localDir];
         if ($scheduleBaseUrl) {
             $args[] = "'$scheduleBaseUrl'";
         }
 
         $cmd = "VUFIND_LOCAL_DIR='$localDir'";
-        $cmd .= " php -d short_open_tag=1 '$script' " . implode(' ', $args);
+        $cmd .= " php -d short_open_tag=1 -d display_errors=1 '$script' "
+            . implode(' ', $args);
         $this->msg("  Switching to institution configuration $localDir");
         $this->msg("    $cmd");
         $res = system($cmd, $retval);
@@ -303,10 +308,13 @@ class ScheduledAlerts extends AbstractService
                 ->get('VuFind\Search\BackendManager')->get('Solr');
         $viewManager = $this->serviceManager->get('viewmanager');
         $viewModel = $viewManager->getViewModel();
-        $renderer = $viewManager->getRenderer();
+        $renderer = $this->serviceManager->get('ViewRenderer');
         $emailer = $this->serviceManager->get('VuFind\Mailer');
         $translator = $renderer->plugin('translate');
         $urlHelper = $renderer->plugin('url');
+        $resultsManager = $this->serviceManager->get(
+            'VuFind\SearchResultsPluginManager'
+        );
 
         $todayTime = new \DateTime();
         $user = false;
@@ -332,7 +340,7 @@ class ScheduledAlerts extends AbstractService
                     );
                     continue;
                 }
-            } else if ($schedule == 2) {
+            } elseif ($schedule == 2) {
                 $diff = $todayTime->diff($lastTime);
                 if ($diff->days < 6) {
                     $this->msg(
@@ -342,7 +350,6 @@ class ScheduledAlerts extends AbstractService
                     );
                     continue;
                 }
-
             } else {
                 $this->err(
                     'Search ' . $s->id . ': unknown schedule: ' . $s->schedule
@@ -383,7 +390,8 @@ class ScheduledAlerts extends AbstractService
                 && in_array(
                     $user->finna_language,
                     array_keys($this->mainConfig->Languages->toArray())
-                )) {
+                )
+            ) {
                 $language = $user->finna_language;
             }
 
@@ -396,43 +404,37 @@ class ScheduledAlerts extends AbstractService
             $limit = 50;
 
             // Prepare query
-            $searchService = $this->serviceManager->get('VuFind\Search');
+            $minSO = $s->getSearchObject();
 
-            $searchObject = $s->getSearchObject();
-            if ($searchObject->cl != 'Solr') {
+            $searchObject = $minSO->deminify($resultsManager);
+
+            if ($searchObject->getBackendId() !== 'Solr') {
                 $this->err(
-                    'Unsupported search class ' . $s->cl . ' for search ' . $s->id
+                    'Unsupported search backend ' . $searchObject->getBackendId()
+                    . ' for search ' . $searchObject->getSearchId()
                 );
                 continue;
             }
 
-            $options = new Options($configLoader);
-            $dateConverter = new DateConverter();
-            $params = new Params($options, $configLoader, $dateConverter);
-            $params->deminify($searchObject);
-
+            $params = $searchObject->getParams();
             $params->setLimit($limit);
-            $params->setSort('first_indexed+desc');
+            $params->setSort('first_indexed desc', true);
 
-            $query = $params->getQuery();
-            $searchParams = $params->getBackendParameters();
-            $searchTime = gmdate($iso8601, time());
+            $searchTime = date('Y-m-d H:i:s');
+            $searchId = $searchObject->getSearchId();
 
             try {
-                $collection = $searchService
-                    ->search('Solr', $query, 0, $limit, $searchParams);
-
-                $resultsTotal = $collection->getTotal();
-                if ($resultsTotal < 1) {
-                    $this->msg('      No results found for search ' . $s->id);
-                    continue;
-                }
-
-                $records = $collection->getRecords();
+                $records = $searchObject->getResults();
             } catch (\Exception $e) {
                 $this->err(
-                    'Error processing search ' . $s->id . ': ' . $e->getMessage()
+                    "Error processing search $searchId: " . $e->getMessage()
                 );
+            }
+            if (empty($records)) {
+                $this->msg(
+                    "      No results found for search $searchId"
+                );
+                continue;
             }
 
             $newestRecordDate
@@ -440,30 +442,32 @@ class ScheduledAlerts extends AbstractService
             $lastExecutionDate = $lastTime->format($iso8601);
             if ($newestRecordDate < $lastExecutionDate) {
                 $this->msg(
-                    '      No new results for search ' . $s->id
-                    . ": $newestRecordDate < $lastExecutionDate"
+                    "      No new results for search {$s->id} ($searchId): "
+                    . "$newestRecordDate < $lastExecutionDate"
                 );
                 continue;
             }
 
+            $this->msg(
+                "      New results for search {$s->id} ($searchId): "
+                . "$newestRecordDate >= $lastExecutionDate"
+            );
+
             // Collect records that have been indexed (for the first time)
             // after previous scheduled alert run
             $newRecords = [];
-            foreach ($collection->getRecords() as $rec) {
-                $recDate = date($iso8601, strtotime($rec->getFirstIndexed()));
+            foreach ($records as $record) {
+                $recDate = date($iso8601, strtotime($record->getFirstIndexed()));
                 if ($recDate < $lastExecutionDate) {
                     break;
                 }
-                $newRecords[] = $rec;
+                $newRecords[] = $record;
             }
 
             // Prepare email content
             $viewBaseUrl = $searchUrl = $s->finna_schedule_base_url;
-            $searchUrl .= $urlHelper->__invoke($options->getSearchAction());
-
-            $urlQueryHelper = new UrlQueryHelper($params);
-            $searchUrl .=
-                str_replace('&amp;', '&', $urlQueryHelper->getParams());
+            $searchUrl .= $urlHelper($searchObject->getOptions()->getSearchAction())
+                . $searchObject->getUrlQuery()->getParams(false);
 
             $secret = $s->getUnsubscribeSecret($hmac, $user);
 
@@ -471,8 +475,7 @@ class ScheduledAlerts extends AbstractService
             $unsubscribeUrl .=
                 $urlHelper->__invoke('myresearch-unsubscribe')
                 . "?id={$s->id}&key=$secret";
-
-            $params->setServiceLocator($this->serviceManager);
+            $userInstitution = $this->mainConfig->Site->institution;
             $filters = $this->processFilters($params->getFilterList());
             $params = [
                 'records' => $newRecords,
@@ -482,7 +485,8 @@ class ScheduledAlerts extends AbstractService
                     'recordCount' => count($newRecords),
                     'url' => $searchUrl,
                     'unsubscribeUrl' => $unsubscribeUrl,
-                    'filters' => $filters
+                    'filters' => $filters,
+                    'userInstitution' => $userInstitution
                  ]
             ];
 
@@ -505,9 +509,10 @@ class ScheduledAlerts extends AbstractService
             }
 
             if ($s->setLastExecuted($searchTime) === 0) {
-                $this->msg('Error updating last_executed date for search ' . $s->id);
+                $this->msg("Error updating last_executed date for search $searchId");
             }
         }
+        $this->msg('    Done processing searches');
     }
 
     /**
@@ -557,13 +562,13 @@ class ScheduledAlerts extends AbstractService
         $appPath = APPLICATION_PATH;
         return <<<EOT
 Usage:
-  VUFIND_LOCAL_MODULES='FinnaTheme,FinnaSearch,Finna,FinnaConsole'
-  php $appPath/util/scheduled_alerts.php
-    <view base directory>
-    <VuFind local configuration directory>
+  php $appPath/util/scheduled_alerts.php <view_base> <local_conf>
 
-            For example:
-  VUFIND_LOCAL_MODULES='FinnaTheme,FinnaSearch,Finna,FinnaConsole'
+  Sends scheduled alerts.
+    view_base  View base directory
+    local_conf VuFind local configuration directory
+
+For example:
   php $appPath/util/scheduled_alerts.php /tmp/finna /tmp/NDL-VuFind2/local
 
 EOT;

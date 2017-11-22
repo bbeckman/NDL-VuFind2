@@ -4,7 +4,7 @@
  *
  * PHP version 5
  *
- * Copyright (C) The National Library of Finland 2015.
+ * Copyright (C) The National Library of Finland 2015-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Search
@@ -26,11 +26,8 @@
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
 namespace Finna\Search\Results;
-use Finna\Search\Factory\UrlQueryHelperFactory,
-    Finna\Search\UrlQueryHelper,
-    Finna\Search\Results\PluginFactory,
-    Zend\Console\Console,
-    Zend\ServiceManager\ServiceManager;
+
+use Zend\ServiceManager\ServiceManager;
 
 /**
  * Search Results Object Factory Class
@@ -50,12 +47,16 @@ class Factory extends \VuFind\Search\Results\Factory
      *
      * @param ServiceManager $sm Service manager.
      *
-     * @return Favorites
+     * @return \VuFind\Search\Favorites\Results
      */
     public static function getFavorites(ServiceManager $sm)
     {
         $factory = new PluginFactory();
-        $obj = $factory->createServiceWithName($sm, 'favorites', 'Favorites');
+        $tm = $sm->getServiceLocator()->get('VuFind\DbTablePluginManager');
+        $obj = $factory->createServiceWithName(
+            $sm, 'favorites', 'Favorites',
+            [$tm->get('Resource'), $tm->get('UserList'), $tm->get('UserResource')]
+        );
         $init = new \ZfcRbac\Initializer\AuthorizationServiceInitializer();
         $init->initialize($obj, $sm);
         return $obj;
@@ -66,7 +67,7 @@ class Factory extends \VuFind\Search\Results\Factory
      *
      * @param ServiceManager $sm Service manager.
      *
-     * @return Solr
+     * @return \VuFind\Search\Solr\Results
      */
     public static function getSolr(ServiceManager $sm)
     {
@@ -87,7 +88,7 @@ class Factory extends \VuFind\Search\Results\Factory
      *
      * @param ServiceManager $sm Service manager.
      *
-     * @return Primo
+     * @return \VuFind\Search\Primo\Results
      */
     public static function getPrimo(ServiceManager $sm)
     {
@@ -96,24 +97,11 @@ class Factory extends \VuFind\Search\Results\Factory
     }
 
     /**
-     * Factory for MetaLib results object.
-     *
-     * @param ServiceManager $sm Service manager.
-     *
-     * @return MetaLib
-     */
-    public static function getMetaLib(ServiceManager $sm)
-    {
-        $factory = new PluginFactory();
-        return $factory->createServiceWithName($sm, 'metalib', 'MetaLib');
-    }
-
-    /**
      * Factory for Combined results object.
      *
      * @param ServiceManager $sm Service manager.
      *
-     * @return Combined
+     * @return \VuFind\Search\Combined\Results
      */
     public static function getCombined(ServiceManager $sm)
     {

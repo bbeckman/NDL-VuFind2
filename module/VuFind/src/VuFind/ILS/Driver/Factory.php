@@ -26,6 +26,7 @@
  * @link     https://vufind.org/wiki/development:plugins:hierarchy_components Wiki
  */
 namespace VuFind\ILS\Driver;
+
 use Zend\ServiceManager\ServiceManager;
 
 /**
@@ -136,6 +137,29 @@ class Factory
     }
 
     /**
+     * Factory for KohaRest driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return KohaRest
+     */
+    public static function getKohaRest(ServiceManager $sm)
+    {
+        $sessionFactory = function ($namespace) use ($sm) {
+            $manager = $sm->getServiceLocator()->get('VuFind\SessionManager');
+            return new \Zend\Session\Container("KohaRest_$namespace", $manager);
+        };
+        $kohaRest = new KohaRest(
+            $sm->getServiceLocator()->get('VuFind\DateConverter'),
+            $sessionFactory
+        );
+        $kohaRest->setCacheStorage(
+            $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
+        );
+        return $kohaRest;
+    }
+
+    /**
      * Factory for MultiBackend driver.
      *
      * @param ServiceManager $sm Service manager.
@@ -146,7 +170,8 @@ class Factory
     {
         return new MultiBackend(
             $sm->getServiceLocator()->get('VuFind\Config'),
-            $sm->getServiceLocator()->get('VuFind\ILSAuthenticator')
+            $sm->getServiceLocator()->get('VuFind\ILSAuthenticator'),
+            $sm
         );
     }
 
@@ -184,6 +209,18 @@ class Factory
     }
 
     /**
+     * Factory for Koha driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return Koha
+     */
+    public static function getKoha(ServiceManager $sm)
+    {
+        return new Koha($sm->getServiceLocator()->get('VuFind\DateConverter'));
+    }
+
+    /**
      * Factory for KohaILSDI driver.
      *
      * @param ServiceManager $sm Service manager.
@@ -192,7 +229,50 @@ class Factory
      */
     public static function getKohaILSDI(ServiceManager $sm)
     {
-        return new KohaILSDI($sm->getServiceLocator()->get('VuFind\DateConverter'));
+        $koha = new KohaILSDI($sm->getServiceLocator()->get('VuFind\DateConverter'));
+        $koha->setCacheStorage(
+            $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
+        );
+        return $koha;
+    }
+
+    /**
+     * Factory for Sierra REST driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return SierraRest
+     */
+    public static function getSierraRest(ServiceManager $sm)
+    {
+        $sessionFactory = function ($namespace) use ($sm) {
+            $manager = $sm->getServiceLocator()->get('VuFind\SessionManager');
+            return new \Zend\Session\Container("SierraRest_$namespace", $manager);
+        };
+
+        $driver = new SierraRest(
+            $sm->getServiceLocator()->get('VuFind\DateConverter'),
+            $sessionFactory
+        );
+        $driver->setCacheStorage(
+            $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
+        );
+        return $driver;
+    }
+
+    /**
+     * Factory for Symphony driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return Symphony
+     */
+    public static function getSymphony(ServiceManager $sm)
+    {
+        return new Symphony(
+            $sm->getServiceLocator()->get('VuFind\RecordLoader'),
+            $sm->getServiceLocator()->get('VuFind\CacheManager')
+        );
     }
 
     /**

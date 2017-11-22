@@ -30,8 +30,11 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace VuFind\ILS\Driver;
-use PDO, PDOException, VuFind\Exception\Date as DateException,
-    VuFind\Exception\ILS as ILSException;
+
+use PDO;
+use PDOException;
+use VuFind\Exception\Date as DateException;
+use VuFind\Exception\ILS as ILSException;
 
 /**
  * Voyager Restful ILS Driver
@@ -477,11 +480,11 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
      *
      * @param array  $data   Item Data
      * @param string $id     The BIB record id
-     * @param mixed  $patron Patron Data or boolean false
+     * @param array  $patron Patron Data
      *
      * @return array Keyed data
      */
-    protected function processHoldingData($data, $id, $patron = false)
+    protected function processHoldingData($data, $id, $patron = null)
     {
         $holding = parent::processHoldingData($data, $id, $patron);
 
@@ -551,7 +554,8 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
 
             $ILLRequest = '';
             $addILLRequestLink = false;
-            if ($patron && $isILLRequestAllowed) {
+            // Check only that a patron has logged in
+            if (null !== $patron && $isILLRequestAllowed) {
                 $ILLRequest = 'auto';
                 $addILLRequestLink = 'check';
             }
@@ -850,6 +854,8 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
      *
      * @return array False if request groups not in use or an array of
      * associative arrays with id and name keys
+     *
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     public function getRequestGroups($bibId, $patron, $holdDetails = null)
     {
@@ -857,100 +863,54 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
             return false;
         }
 
-        if ($this->checkItemsExist) {
-            // First get hold information for the list of items Voyager
-            // thinks are holdable
-            $request = $this->determineHoldType($patron['id'], $bibId);
-            if ($request != 'hold' && $request != 'recall') {
-                return false;
-            }
+        $sqlExpressions = [
+            'rg.GROUP_ID',
+            'rg.GROUP_NAME',
+        ];
+        $sqlFrom = [
+            "$this->dbName.REQUEST_GROUP rg"
 
-            $hierarchy = [];
+        ];
+        $sqlWhere = [];
+        $sqlBind = [];
 
-            // Build Hierarchy
-            $hierarchy['record'] = $bibId;
-            $hierarchy[$request] = false;
-
-            // Add Required Params
-            $params = [
-                'patron' => $patron['id'],
-                'patron_homedb' => $this->ws_patronHomeUbId,
-                'view' => 'full'
-            ];
-
-            $results = $this->makeRequest($hierarchy, $params, 'GET', false);
-
-            if ($results === false) {
-                throw new ILSException('Could not fetch hold information');
-            }
-
-            $items = [];
-            foreach ($results->$request as $hold) {
-                foreach ($hold->items->item as $item) {
-                    $items[(string)$item->item_id] = 1;
-                }
-            }
+        if ($this->pickupLocationsInRequestGroup) {
+            // Limit to request groups that have valid pickup locations
+            $sqlWhere[] = <<<EOT
+rg.GROUP_ID IN (
+  SELECT rgl.GROUP_ID
+  FROM $this->dbName.REQUEST_GROUP_LOCATION rgl
+  WHERE rgl.LOCATION_ID IN (
+    SELECT cpl.LOCATION_ID
+    FROM $this->dbName.CIRC_POLICY_LOCS cpl
+    WHERE cpl.PICKUP_LOCATION='Y'
+  )
+)
+EOT;
         }
 
-        // Find request groups (with items if item check is enabled)
         if ($this->checkItemsExist) {
-            $sqlExpressions = [
-                'rg.GROUP_ID',
-                'rg.GROUP_NAME',
-                'bi.ITEM_ID'
-            ];
-
-            $sqlFrom = [
-                "$this->dbName.BIB_ITEM bi",
-                "$this->dbName.MFHD_ITEM mi",
-                "$this->dbName.MFHD_MASTER mm",
-                "$this->dbName.REQUEST_GROUP rg",
-                "$this->dbName.REQUEST_GROUP_LOCATION rgl",
-            ];
-
-            $sqlWhere = [
-                'bi.BIB_ID=:bibId',
-                'mi.ITEM_ID=bi.ITEM_ID',
-                'mm.MFHD_ID=mi.MFHD_ID',
-                'rgl.LOCATION_ID=mm.LOCATION_ID',
-                'rg.GROUP_ID=rgl.GROUP_ID'
-            ];
-
-            $sqlBind = [
-                'bibId' => $bibId
-            ];
-        } else {
-            $sqlExpressions = [
-                'rg.GROUP_ID',
-                'rg.GROUP_NAME',
-            ];
-
-            $sqlFrom = [
-                "$this->dbName.REQUEST_GROUP rg",
-                "$this->dbName.REQUEST_GROUP_LOCATION rgl"
-            ];
-
-            $sqlWhere = [
-                'rg.GROUP_ID=rgl.GROUP_ID'
-            ];
-
-            $sqlBind = [
-            ];
-
-            if ($this->pickupLocationsInRequestGroup) {
-                // Limit to request groups that have valid pickup locations
-                $sqlFrom[] = "$this->dbName.REQUEST_GROUP_LOCATION rgl";
-                $sqlFrom[] = "$this->dbName.CIRC_POLICY_LOCS cpl";
-
-                $sqlWhere[] = "rgl.GROUP_ID=rg.GROUP_ID";
-                $sqlWhere[] = "cpl.LOCATION_ID=rgl.LOCATION_ID";
-                $sqlWhere[] = "cpl.PICKUP_LOCATION='Y'";
-            }
+            $sqlWhere[] = <<<EOT
+rg.GROUP_ID IN (
+  SELECT rgl.GROUP_ID
+  FROM $this->dbName.REQUEST_GROUP_LOCATION rgl
+  WHERE rgl.LOCATION_ID IN (
+    SELECT mm.LOCATION_ID FROM $this->dbName.MFHD_MASTER mm
+    WHERE mm.SUPPRESS_IN_OPAC='N'
+    AND mm.MFHD_ID IN (
+      SELECT mi.MFHD_ID
+      FROM $this->dbName.MFHD_ITEM mi, $this->dbName.BIB_ITEM bi
+      WHERE mi.ITEM_ID = bi.ITEM_ID AND bi.BIB_ID=:bibId
+    )
+  )
+)
+EOT;
+            $sqlBind['bibId'] = $bibId;
         }
 
         if ($this->checkItemsNotAvailable) {
-
-            // Build inner query first
+            // Build first the inner query that return item statuses for all request
+            // groups
             $subExpressions = [
                 'sub_rgl.GROUP_ID',
                 'sub_i.ITEM_ID',
@@ -972,7 +932,8 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
                 'sub_ist.ITEM_ID=sub_i.ITEM_ID',
                 'sub_mi.ITEM_ID=sub_i.ITEM_ID',
                 'sub_mm.MFHD_ID=sub_mi.MFHD_ID',
-                'sub_rgl.LOCATION_ID=sub_mm.LOCATION_ID'
+                'sub_rgl.LOCATION_ID=sub_mm.LOCATION_ID',
+                "sub_mm.SUPPRESS_IN_OPAC='N'"
             ];
 
             $subGroup = [
@@ -992,9 +953,28 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
 
             $subSql = $this->buildSqlFromArray($subArray);
 
-            $sqlWhere[] = "not exists (select status.GROUP_ID from " .
-                "({$subSql['string']}) status where status.status=1 " .
-                "and status.GROUP_ID = rgl.GROUP_ID)";
+            $itemWhere = <<<EOT
+rg.GROUP_ID NOT IN (
+  SELECT status.GROUP_ID
+  FROM ({$subSql['string']}) status
+  WHERE status.status=1
+)
+EOT;
+
+            $key = 'disableAvailabilityCheckForRequestGroups';
+            if (isset($this->config['Holds'][$key])) {
+                $disabledGroups = array_map(
+                    function ($s) {
+                        return preg_replace('/[^\d]*/', '', $s);
+                    },
+                    explode(':', $this->config['Holds'][$key])
+                );
+                if ($disabledGroups) {
+                    $itemWhere = "($itemWhere OR rg.GROUP_ID IN ("
+                        . implode(',', $disabledGroups) . '))';
+                }
+            }
+            $sqlWhere[] = $itemWhere;
         }
 
         $sqlArray = [
@@ -1012,16 +992,12 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
             throw new ILSException($e->getMessage());
         }
 
-        $groups = [];
-        while ($row = $sqlStmt->fetch(PDO::FETCH_ASSOC)) {
-            if (!$this->checkItemsExist || isset($items[$row['ITEM_ID']])) {
-                $groups[$row['GROUP_ID']] = utf8_encode($row['GROUP_NAME']);
-            }
-        }
-
         $results = [];
-        foreach ($groups as $groupId => $groupName) {
-            $results[] = ['id' => $groupId, 'name' => $groupName];
+        while ($row = $sqlStmt->fetch(PDO::FETCH_ASSOC)) {
+            $results[] = [
+                'id' => $row['GROUP_ID'],
+                'name' => utf8_encode($row['GROUP_NAME'])
+            ];
         }
 
         // Sort request groups
@@ -1089,7 +1065,15 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
 
         // Send Request and Retrieve Response
         $startTime = microtime(true);
-        $result = $client->setMethod($mode)->send();
+        try {
+            $result = $client->setMethod($mode)->send();
+        } catch (\Exception $e) {
+            $this->error(
+                "$mode request for '$urlParams' with contents '$xml' failed: "
+                . $e->getMessage()
+            );
+            throw new ILSException('Problem with RESTful API.');
+        }
         if (!$result->isSuccess()) {
             $this->error(
                 "$mode request for '$urlParams' with contents '$xml' failed: "
@@ -1272,6 +1256,7 @@ class VoyagerRestful extends Voyager implements \VuFindHttp\HttpServiceAwareInte
      *
      * @return array              An array of renewal information keyed by item ID
      */
+
     /**
      * Renew My Items
      *
@@ -1445,7 +1430,6 @@ EOT;
         $itemId = false
     ) {
         if (!empty($bibId) && !empty($patronId) && !empty($request)) {
-
             $hierarchy = [];
 
             // Build Hierarchy
@@ -1642,14 +1626,15 @@ EOT;
     }
 
     /**
-     * Check whether the given patron has the given bib record on loan.
+     * Check whether the given patron has the given bib record or its item on loan.
      *
      * @param int $patronId Patron ID
-     * @param int $bibId    BIB ID
+     * @param int $bibId    Bib ID
+     * @param int $itemId   Item ID (optional)
      *
      * @return bool
      */
-    protected function isRecordOnLoan($patronId, $bibId)
+    protected function isRecordOnLoan($patronId, $bibId, $itemId = null)
     {
         $sqlExpressions = [
             'count(cta.ITEM_ID) CNT'
@@ -1674,9 +1659,15 @@ EOT;
             $sqlWhere[] = 'mi.ITEM_ID=cta.ITEM_ID';
             $sqlWhere[] = 'mm.MFHD_ID=mi.MFHD_ID';
             $sqlWhere[] = 'rgl.LOCATION_ID=mm.LOCATION_ID';
+            $sqlWhere[] = "mm.SUPPRESS_IN_OPAC='N'";
         }
 
         $sqlBind = ['patronId' => $patronId, 'bibId' => $bibId];
+
+        if (null !== $itemId) {
+            $sqlWhere[] = 'cta.ITEM_ID=:itemId';
+            $sqlBind['itemId'] = $itemId;
+        }
 
         $sqlArray = [
             'expressions' => $sqlExpressions,
@@ -1721,7 +1712,8 @@ EOT;
             'bi.BIB_ID=:bibId',
             'i.ITEM_ID=bi.ITEM_ID',
             'mi.ITEM_ID=i.ITEM_ID',
-            'mm.MFHD_ID=mi.MFHD_ID'
+            'mm.MFHD_ID=mi.MFHD_ID',
+            "mm.SUPPRESS_IN_OPAC='N'"
         ];
 
         if ($this->excludedItemLocations) {
@@ -1786,7 +1778,8 @@ EOT;
             'i.ITEM_ID=bi.ITEM_ID',
             'ist.ITEM_ID=i.ITEM_ID',
             'mi.ITEM_ID=i.ITEM_ID',
-            'mm.MFHD_ID=mi.MFHD_ID'
+            'mm.MFHD_ID=mi.MFHD_ID',
+            "mm.SUPPRESS_IN_OPAC='N'"
         ];
 
         if ($this->excludedItemLocations) {
@@ -2004,7 +1997,7 @@ EOT;
             return $this->holdError('hold_invalid_request_group');
         }
 
-            // Optional check that the bib has items
+        // Optional check that the bib has items
         if ($this->checkItemsExist) {
             $exist = $this->itemsExist(
                 $bibId,
@@ -2039,7 +2032,9 @@ EOT;
 
         // Optional check that the patron doesn't already have the bib on loan
         if ($this->checkLoans) {
-            if ($this->isRecordOnLoan($patron['id'], $bibId)) {
+            $checkItemId = $this->checkLoans === 'same-item' && $level == 'copy'
+                && $itemId ? $itemId : null;
+            if ($this->isRecordOnLoan($patron['id'], $bibId, $checkItemId)) {
                 return $this->holdError('hold_record_already_on_loan');
             }
         }
@@ -2087,7 +2082,7 @@ EOT;
         foreach ($details as $cancelDetails) {
             list($itemId, $cancelCode) = explode('|', $cancelDetails);
 
-             // Create Rest API Cancel Key
+            // Create Rest API Cancel Key
             $cancelID = $this->ws_dbKey . '|' . $cancelCode;
 
             // Build Hierarchy
@@ -2119,7 +2114,6 @@ EOT;
                         ? 'hold_cancel_success' : 'hold_cancel_fail',
                     'sysMessage' => ($reply == 'ok') ? false : $reply,
                 ];
-
             } else {
                 $response[$itemId] = [
                     'success' => false, 'status' => 'hold_cancel_fail'
@@ -2237,7 +2231,7 @@ EOT;
                     if ($dueTimeStamp !== false && is_numeric($dueTimeStamp)) {
                         if ($now > $dueTimeStamp) {
                             $dueStatus = 'overdue';
-                        } else if ($now > $dueTimeStamp - (1 * 24 * 60 * 60)) {
+                        } elseif ($now > $dueTimeStamp - (1 * 24 * 60 * 60)) {
                             $dueStatus = 'due';
                         }
                     }
@@ -2584,7 +2578,7 @@ EOT;
         foreach ($details as $cancelDetails) {
             list($dbKey, $itemId, $cancelCode) = explode('|', $cancelDetails);
 
-             // Create Rest API Cancel Key
+            // Create Rest API Cancel Key
             $cancelID = ($dbKey ? $dbKey : $this->ws_dbKey) . '|' . $cancelCode;
 
             // Build Hierarchy
@@ -2616,7 +2610,6 @@ EOT;
                         : 'storage_retrieval_request_cancel_fail',
                     'sysMessage' => ($reply == 'ok') ? false : $reply,
                 ];
-
             } else {
                 $response[$itemId] = [
                     'success' => false,
@@ -3183,7 +3176,7 @@ EOT;
         foreach ($details as $cancelDetails) {
             list($dbKey, $itemId, $type, $cancelCode) = explode('|', $cancelDetails);
 
-             // Create Rest API Cancel Key
+            // Create Rest API Cancel Key
             $cancelID = ($dbKey ? $dbKey : $this->ws_dbKey) . '|' . $cancelCode;
 
             // Build Hierarchy
@@ -3221,7 +3214,6 @@ EOT;
                         ? 'ill_request_cancel_success' : 'ill_request_cancel_fail',
                     'sysMessage' => ($reply == 'ok') ? false : $reply,
                 ];
-
             } else {
                 $response[$itemId] = [
                     'success' => false,

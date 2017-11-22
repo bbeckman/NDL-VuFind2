@@ -26,6 +26,7 @@
  * @link     https://vufind.org Main Site
  */
 namespace VuFind\Search\MixedList;
+
 use VuFind\Search\Base\Results as BaseResults;
 
 /**
@@ -62,8 +63,7 @@ class Results extends BaseResults
     protected function performSearch()
     {
         $recordsToRequest = $this->getParams()->getRecordsToRequest();
-        $this->results = $this->getServiceLocator()->get('VuFind\RecordLoader')
-            ->loadBatch($recordsToRequest);
+        $this->results = $this->recordLoader->loadBatch($recordsToRequest);
         $this->resultTotal = count($this->results);
     }
 }

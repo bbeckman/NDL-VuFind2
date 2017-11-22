@@ -31,9 +31,11 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace VuFind\ILS\Driver;
-use DOMDocument, VuFind\Exception\ILS as ILSException,
-    VuFindHttp\HttpServiceAwareInterface as HttpServiceAwareInterface,
-    Zend\Log\LoggerAwareInterface as LoggerAwareInterface;
+
+use DOMDocument;
+use VuFind\Exception\ILS as ILSException;
+use VuFindHttp\HttpServiceAwareInterface as HttpServiceAwareInterface;
+use Zend\Log\LoggerAwareInterface as LoggerAwareInterface;
 
 /**
  * ILS Driver for VuFind to query availability information via DAIA.
@@ -473,7 +475,6 @@ class DAIA extends AbstractBase implements
                 'HTTP status ' . $result->getStatusCode() .
                 ' received, retrieving availability information for record: ' . $id
             );
-
         }
 
         // check if result matches daiaResponseFormat
@@ -506,7 +507,7 @@ class DAIA extends AbstractBase implements
             }
         }
 
-        return ($result->getBody());
+        return $result->getBody();
     }
 
     /**
@@ -654,7 +655,8 @@ class DAIA extends AbstractBase implements
                         || (in_array(
                             $domNode->nodeName,
                             ['storage', 'limitation', 'department', 'institution']
-                        ) && strlen($domNode->nodeValue))) {
+                        ) && strlen($domNode->nodeValue))
+                    ) {
                         if (trim($node->textContent)) {
                             $domNode->setAttribute('content', $node->textContent);
                             $node->nodeValue = '';
@@ -790,7 +792,6 @@ class DAIA extends AbstractBase implements
     protected function getItemStatus($item)
     {
         $availability = false;
-        $status = ''; // status cannot be null as this will crash the translator
         $duedate = null;
         $serviceLink = '';
         $queue = '';
@@ -934,7 +935,7 @@ class DAIA extends AbstractBase implements
         $return['customData']      = $this->getCustomData($item);
 
         $return['limitation_types'] = $item_limitation_types;
-        
+
         return $return;
     }
 
@@ -1007,9 +1008,9 @@ class DAIA extends AbstractBase implements
 
         // Check if we have at least one service unavailable and a href field is set
         // (either as flag or as actual value for the next action).
-        return ($href && count(
+        return $href && count(
             array_diff($services['unavailable'], $services['available'])
-        ));
+        );
     }
 
     /**
@@ -1051,9 +1052,9 @@ class DAIA extends AbstractBase implements
 
         // Check if we have at least one service unavailable and a href field is set
         // (either as flag or as actual value for the next action).
-        return ($href && count(
+        return $href && count(
             array_diff($services['available'], $services['unavailable'])
-        ));
+        );
     }
 
     /**
@@ -1305,7 +1306,7 @@ class DAIA extends AbstractBase implements
         foreach ($messages as $message) {
             if (isset($message['content'])) {
                 $this->debug(
-                    'Message in DAIA response (' . (string) $context . '): ' .
+                    'Message in DAIA response (' . (string)$context . '): ' .
                     $message['content']
                 );
             }

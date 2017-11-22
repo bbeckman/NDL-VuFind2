@@ -26,7 +26,9 @@
  * @link     https://vufind.org/wiki/development:testing:unit_tests Wiki
  */
 namespace VuFindTest\View\Helper\Root;
-use VuFind\View\Helper\Root\Record, Zend\View\Exception\RuntimeException;
+
+use VuFind\View\Helper\Root\Record;
+use Zend\View\Exception\RuntimeException;
 
 /**
  * Record view helper Test Class
@@ -160,7 +162,7 @@ class RecordTest extends \PHPUnit_Framework_TestCase
      */
     public function testGetListEntry()
     {
-        $driver = $this->getMock('VuFind\RecordDriver\AbstractBase');
+        $driver = $this->createMock('VuFind\RecordDriver\AbstractBase');
         $driver->expects($this->once())->method('getContainingLists')
             ->with($this->equalTo(42))
             ->will($this->returnValue([1, 2, 3]));
@@ -271,10 +273,10 @@ class RecordTest extends \PHPUnit_Framework_TestCase
     {
         $context = $this->getMockContext();
         $context->expects($this->at(1))->method('renderInContext')
-            ->with($this->equalTo('record/checkbox.phtml'), $this->equalTo(['id' => 'Solr|000105196', 'count' => 0, 'prefix' => 'bar']))
+            ->with($this->equalTo('record/checkbox.phtml'), $this->equalTo(['id' => 'Solr|000105196', 'count' => 0, 'prefix' => 'bar', 'formAttr' => 'foo']))
             ->will($this->returnValue('success'));
         $context->expects($this->at(2))->method('renderInContext')
-            ->with($this->equalTo('record/checkbox.phtml'), $this->equalTo(['id' => 'Solr|000105196', 'count' => 1, 'prefix' => 'bar']))
+            ->with($this->equalTo('record/checkbox.phtml'), $this->equalTo(['id' => 'Solr|000105196', 'count' => 1, 'prefix' => 'bar', 'formAttr' => 'foo']))
             ->will($this->returnValue('success'));
         $record = $this->getRecord(
             $this->loadRecordFixture('testbug1.json'), [], $context
@@ -490,7 +492,7 @@ class RecordTest extends \PHPUnit_Framework_TestCase
         if (null === $context) {
             $context = $this->getMockContext();
         }
-        $view = $this->getMock('Zend\View\Renderer\PhpRenderer');
+        $view = $this->createMock('Zend\View\Renderer\PhpRenderer');
         if ($url) {
             $url = $this->getMockUrl($url);
         }
@@ -530,7 +532,7 @@ class RecordTest extends \PHPUnit_Framework_TestCase
      */
     protected function getMockResolver()
     {
-        return $this->getMock('Zend\View\Resolver\ResolverInterface');
+        return $this->createMock('Zend\View\Resolver\ResolverInterface');
     }
 
     /**
@@ -540,7 +542,7 @@ class RecordTest extends \PHPUnit_Framework_TestCase
      */
     protected function getMockContext()
     {
-        $context = $this->getMock('VuFind\View\Helper\Root\Context');
+        $context = $this->createMock('VuFind\View\Helper\Root\Context');
         $context->expects($this->any())->method('__invoke')
             ->will($this->returnValue($context));
         return $context;
@@ -555,7 +557,7 @@ class RecordTest extends \PHPUnit_Framework_TestCase
      */
     protected function getMockUrl($expectedRoute)
     {
-        $url = $this->getMock('Zend\View\Helper\Url');
+        $url = $this->createMock('Zend\View\Helper\Url');
         $url->expects($this->once())->method('__invoke')
             ->with($this->equalTo($expectedRoute))
             ->will($this->returnValue('http://foo/bar'));
@@ -571,7 +573,7 @@ class RecordTest extends \PHPUnit_Framework_TestCase
      */
     protected function getMockServerUrl()
     {
-        $url = $this->getMock('Zend\View\Helper\ServerUrl');
+        $url = $this->createMock('Zend\View\Helper\ServerUrl');
         $url->expects($this->once())->method('__invoke')
             ->will($this->returnValue('http://server-foo/baz'));
         return $url;

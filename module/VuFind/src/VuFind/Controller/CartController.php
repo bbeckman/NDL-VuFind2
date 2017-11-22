@@ -26,8 +26,11 @@
  * @link     https://vufind.org Main Site
  */
 namespace VuFind\Controller;
-use VuFind\Exception\Forbidden as ForbiddenException,
-    VuFind\Exception\Mail as MailException;
+
+use VuFind\Exception\Forbidden as ForbiddenException;
+use VuFind\Exception\Mail as MailException;
+use Zend\ServiceManager\ServiceLocatorInterface;
+use Zend\Session\Container;
 
 /**
  * Book Bag / Bulk Action Controller
@@ -50,11 +53,12 @@ class CartController extends AbstractBase
     /**
      * Constructor
      *
-     * @param \Zend\Session\Container $container Session container
+     * @param ServiceLocatorInterface $sm        Service manager
+     * @param Container               $container Session container
      */
-    public function __construct(\Zend\Session\Container $container)
+    public function __construct(ServiceLocatorInterface $sm, Container $container)
     {
-        parent::__construct();
+        parent::__construct($sm);
         $this->session = $container;
     }
 
@@ -65,7 +69,7 @@ class CartController extends AbstractBase
      */
     protected function getCart()
     {
-        return $this->getServiceLocator()->get('VuFind\Cart');
+        return $this->serviceLocator->get('VuFind\Cart');
     }
 
     /**
@@ -79,11 +83,11 @@ class CartController extends AbstractBase
     {
         if (strlen($this->params()->fromPost('email', '')) > 0) {
             return 'Email';
-        } else if (strlen($this->params()->fromPost('print', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('print', '')) > 0) {
             return 'PrintCart';
-        } else if (strlen($this->params()->fromPost('saveCart', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('saveCart', '')) > 0) {
             return 'Save';
-        } else if (strlen($this->params()->fromPost('export', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('export', '')) > 0) {
             return 'Export';
         }
         // Check if the user is in the midst of a login process; if not,
@@ -152,13 +156,13 @@ class CartController extends AbstractBase
         // Add items if necessary:
         if (strlen($this->params()->fromPost('empty', '')) > 0) {
             $this->getCart()->emptyCart();
-        } else if (strlen($this->params()->fromPost('delete', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('delete', '')) > 0) {
             if (empty($ids)) {
                 return $this->redirectToSource('error', 'bulk_noitems_advice');
             } else {
                 $this->getCart()->removeItems($ids);
             }
-        } else if (strlen($this->params()->fromPost('add', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('add', '')) > 0) {
             if (empty($ids)) {
                 return $this->redirectToSource('error', 'bulk_noitems_advice');
             } else {
@@ -199,14 +203,14 @@ class CartController extends AbstractBase
         $controller = 'Cart';   // assume Cart unless overridden below.
         if (strlen($this->params()->fromPost('email', '')) > 0) {
             $action = 'Email';
-        } else if (strlen($this->params()->fromPost('print', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('print', '')) > 0) {
             $action = 'PrintCart';
-        } else if (strlen($this->params()->fromPost('delete', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('delete', '')) > 0) {
             $controller = 'MyResearch';
             $action = 'Delete';
-        } else if (strlen($this->params()->fromPost('add', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('add', '')) > 0) {
             $action = 'Home';
-        } else if (strlen($this->params()->fromPost('export', '')) > 0) {
+        } elseif (strlen($this->params()->fromPost('export', '')) > 0) {
             $action = 'Export';
         } else {
             throw new \Exception('Unrecognized bulk action.');
@@ -263,7 +267,7 @@ class CartController extends AbstractBase
             // Attempt to send the email and show an appropriate flash message:
             try {
                 // If we got this far, we're ready to send the email:
-                $mailer = $this->getServiceLocator()->get('VuFind\Mailer');
+                $mailer = $this->serviceLocator->get('VuFind\Mailer');
                 $mailer->setMaxRecipients($view->maxRecipients);
                 $cc = $this->params()->fromPost('ccself') && $view->from != $view->to
                     ? $view->from : null;
@@ -308,7 +312,7 @@ class CartController extends AbstractBase
      */
     protected function getExport()
     {
-        return $this->getServiceLocator()->get('VuFind\Export');
+        return $this->serviceLocator->get('VuFind\Export');
     }
 
     /**
@@ -339,7 +343,10 @@ class CartController extends AbstractBase
             $msg = [
                 'translate' => false, 'html' => true,
                 'msg' => $this->getViewRenderer()->render(
-                    'cart/export-success.phtml', ['url' => $url]
+                    'cart/export-success.phtml', [
+                        'url' => $url,
+                        'exportType' => $export->getBulkExportType($format)
+                    ]
                 )
             ];
             return $this->redirectToSource('success', $msg);

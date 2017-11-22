@@ -26,7 +26,10 @@
  * @link     https://vufind.org Main Site
  */
 namespace VuFind;
-use Zend\Console\Console, Zend\Mvc\MvcEvent, Zend\Mvc\Router\Http\RouteMatch;
+
+use Zend\Console\Console;
+use Zend\Mvc\MvcEvent;
+use Zend\Mvc\Router\Http\RouteMatch;
 
 /**
  * VuFind Bootstrapper
@@ -201,8 +204,8 @@ class Bootstrapper
     {
         $callback = function ($event) {
             $serviceManager = $event->getApplication()->getServiceManager();
-            $renderer = $serviceManager->get('viewmanager')->getRenderer();
-            $headTitle = $renderer->plugin('headtitle');
+            $helperManager = $serviceManager->get('ViewHelperManager');
+            $headTitle = $helperManager->get('headtitle');
             $headTitle->setDefaultAttachOrder(
                 \Zend\View\Helper\Placeholder\Container\AbstractContainer::SET
             );

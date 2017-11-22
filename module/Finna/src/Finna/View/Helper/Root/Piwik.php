@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  View_Helpers
@@ -41,18 +41,18 @@ namespace Finna\View\Helper\Root;
 class Piwik extends \VuFind\View\Helper\Root\Piwik
 {
     /**
-     * MetaLib search results
-     *
-     * @var \Finna\Search\MetaLib\Results
-     */
-    protected $results = null;
-
-    /**
      * Translator
      *
      * @var \VuFind\Translator
      */
     protected $translator;
+
+    /**
+     * Current results, if any
+     *
+     * @var \VuFind\Search\Base\Results
+     */
+    protected $results = null;
 
     /**
      * Constructor
@@ -133,7 +133,7 @@ class Piwik extends \VuFind\View\Helper\Root\Piwik
 
         $source = $recordDriver->getSourceIdentifier();
         $sourceMap
-            = ['Solr' => 'Local', 'Primo' => 'PCI', 'MetaLib' => 'MetaLib'];
+            = ['Solr' => 'Local', 'Primo' => 'PCI'];
 
         $vars['RecordIndex']
             = isset($sourceMap[$source]) ? $sourceMap[$source] : $source;
@@ -153,12 +153,6 @@ class Piwik extends \VuFind\View\Helper\Root\Piwik
                     unset($vars[$var]);
                 }
             }
-        } else if ($source == 'MetaLib') {
-            $vars['MetaLibRecordSource'] = $recordDriver->getSource();
-            $vars['MetaLibRecordData'] = $vars['RecordData'];
-            unset($vars['RecordFormat']);
-            unset($vars['RecordData']);
-            unset($vars['RecordInstitution']);
         } else {
             $format = $formats = $recordDriver->tryMethod('getFormats');
             if (is_array($formats)) {
@@ -176,7 +170,6 @@ class Piwik extends \VuFind\View\Helper\Root\Piwik
             $vars['RecordAvailableOnline'] = $online ? 'yes' : 'no';
             $vars['RecordData' . ($online ? 'Online' : 'Offline')]
                 = $vars['RecordData'];
-
         }
 
         return $vars;
@@ -210,20 +203,7 @@ class Piwik extends \VuFind\View\Helper\Root\Piwik
         $backendId = method_exists($results, 'getBackendId')
             ? $results->getBackendId() : '';
 
-        if ($backendId === 'MetaLib') {
-            unset($vars['Facets']);
-            unset($vars['FacetTypes']);
-            unset($vars['View']);
-            unset($vars['Limit']);
-            unset($vars['Sort']);
-
-            $vars['SearchType'] = 'MetaLib';
-            if ($currentType == 'advanced') {
-                $vars['SearchType'] = 'MetaLibAdvanced';
-            }
-
-            return $vars;
-        } else if ($backendId == 'Primo') {
+        if ($backendId == 'Primo') {
             unset($vars['View']);
             $vars['SearchType'] = 'PCI';
             if ($currentType == 'advanced') {

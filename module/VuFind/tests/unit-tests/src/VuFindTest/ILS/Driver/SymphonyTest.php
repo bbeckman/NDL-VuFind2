@@ -26,6 +26,7 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFindTest\ILS\Driver;
+
 use VuFind\ILS\Driver\Symphony;
 
 /**
@@ -46,7 +47,10 @@ class SymphonyTest extends \VuFindTest\Unit\TestCase
      */
     public function __construct()
     {
-        $this->driver = new Symphony();
+        $loader = $this->getMockBuilder('VuFind\Record\Loader')
+            ->disableOriginalConstructor()->getMock();
+
+        $this->driver = new Symphony($loader);
     }
 
     /**
@@ -56,10 +60,6 @@ class SymphonyTest extends \VuFindTest\Unit\TestCase
      */
     public function testBadBaseUrl()
     {
-        if (!version_compare(\PHP_VERSION, '5.3.4', '>=')) {
-            $this->markTestSkipped('Test requires PHP >= 5.3.4 (see VUFIND-660)');
-        }
-
         // Without SOAP functionality, we can't proceed:
         if (!class_exists('SoapClient')) {
             $this->markTestSkipped('SoapClient not installed');

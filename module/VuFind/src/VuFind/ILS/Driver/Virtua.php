@@ -26,6 +26,7 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace VuFind\ILS\Driver;
+
 use VuFind\Exception\ILS as ILSException;
 
 /**
@@ -155,7 +156,7 @@ class Virtua extends AbstractBase implements \VuFindHttp\HttpServiceAwareInterfa
                     ];
 
                 switch ($result[0]['CALL_NUMBER']) {
-                case 'ELECTRONIC RESOURCE' :
+                case 'ELECTRONIC RESOURCE':
                     $new_holding['availability'] = true;
                     $new_holding['status']       = null;
                     $new_holding['location']     = "Online";
@@ -163,19 +164,19 @@ class Virtua extends AbstractBase implements \VuFindHttp\HttpServiceAwareInterfa
                     $holding[] = $new_holding;
                     return $holding;
                     break;
-                case 'ON ORDER' :
+                case 'ON ORDER':
                     $new_holding['status']       = "ON ORDER";
                     $new_holding['location']     = "Pending...";
                     $holding[] = $new_holding;
                     return $holding;
                     break;
-                case 'ORDER CANCELLED' :
+                case 'ORDER CANCELLED':
                     $new_holding['status']       = "ORDER CANCELLED";
                     $new_holding['location']     = "None";
                     $holding[] = $new_holding;
                     return $holding;
                     break;
-                case 'MISSING' :
+                case 'MISSING':
                     $new_holding['status']       = "MISSING";
                     $new_holding['location']     = "Unknown";
                     $holding[] = $new_holding;
@@ -589,11 +590,9 @@ class Virtua extends AbstractBase implements \VuFindHttp\HttpServiceAwareInterfa
                         ) {
                             // ... can this user borrow on loan items at this
                             // location?
-                            if (in_array(
+                            $can_req = in_array(
                                 $location, $unavailable_locs[$item_loc_code]
-                            )) {
-                                $can_req = true;
-                            }
+                            );
                         }
                     } else {
                         // The item is NOT on loan ...
@@ -601,9 +600,8 @@ class Virtua extends AbstractBase implements \VuFindHttp\HttpServiceAwareInterfa
                         // ... and has a requestable status ...
                         if (in_array($item_stat_code, $status_list)) {
                             // ... can the user borrow status items at this location?
-                            if (in_array($location, $status_locs[$item_loc_code])) {
-                                $can_req = true;
-                            }
+                            $can_req
+                                = in_array($location, $status_locs[$item_loc_code]);
                         } else {
                             // ... and DOESN'T have a requestable status ...
                             if ($item_stat_code !== null) {
@@ -611,11 +609,9 @@ class Virtua extends AbstractBase implements \VuFindHttp\HttpServiceAwareInterfa
                             } else {
                                 // ... can the user borrow available items at this
                                 // location?
-                                if (in_array(
+                                $can_req = in_array(
                                     $location, $available_locs[$item_loc_code]
-                                )) {
-                                    $can_req = true;
-                                }
+                                );
                             }
                         }
                     }
@@ -723,7 +719,7 @@ class Virtua extends AbstractBase implements \VuFindHttp\HttpServiceAwareInterfa
                     $end_time = strtotime("01-" . $months[1] . "-" . $years[0]);
                     break;
                 // January 2000
-                case "11";
+                case "11":
                     $start_string = "F Y";
                     $end_time = null;
                     break;

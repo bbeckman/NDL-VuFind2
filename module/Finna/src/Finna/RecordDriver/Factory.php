@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  RecordDrivers
@@ -26,6 +26,7 @@
  * @link     http://vufind.org/wiki/vufind2:record_drivers Wiki
  */
 namespace Finna\RecordDriver;
+
 use Zend\ServiceManager\ServiceManager;
 
 /**
@@ -42,9 +43,24 @@ use Zend\ServiceManager\ServiceManager;
 class Factory
 {
     /**
+     * Factory for EDS record driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return EDS
+     */
+    public static function getEDS(ServiceManager $sm)
+    {
+        $eds = $sm->getServiceLocator()->get('VuFind\Config')->get('EDS');
+        return new EDS(
+            $sm->getServiceLocator()->get('VuFind\Config')->get('config'), $eds, $eds
+        );
+    }
+
+    /**
      * Factory for SolrDefault record driver.
      *
-      * @param ServiceManager $sm Service manager.
+     * @param ServiceManager $sm Service manager.
      *
      * @return SolrDefault
      */
@@ -167,23 +183,6 @@ class Factory
         $driver = new Primo(
             $sm->getServiceLocator()->get('VuFind\Config')->get('config'),
             $primo, $primo
-        );
-        return $driver;
-    }
-
-    /**
-     * Factory for MetaLib record driver.
-     *
-     * @param ServiceManager $sm Service manager.
-     *
-     * @return MetaLib
-     */
-    public static function getMetaLib(ServiceManager $sm)
-    {
-        $conf = $sm->getServiceLocator()->get('VuFind\Config')->get('MetaLib');
-        $driver = new MetaLib(
-            $sm->getServiceLocator()->get('VuFind\Config')->get('config'),
-            $conf, $conf
         );
         return $driver;
     }

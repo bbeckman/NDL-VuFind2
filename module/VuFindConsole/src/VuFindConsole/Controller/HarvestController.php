@@ -26,7 +26,9 @@
  * @link     https://vufind.org/wiki/development:plugins:controllers Wiki
  */
 namespace VuFindConsole\Controller;
-use VuFindHarvest\OaiPmh\HarvesterConsoleRunner, Zend\Console\Console;
+
+use VuFindHarvest\OaiPmh\HarvesterConsoleRunner;
+use Zend\Console\Console;
 
 /**
  * This controller handles various command-line tools
@@ -81,7 +83,7 @@ class HarvestController extends AbstractBase
         }
 
         // Get the default VuFind HTTP client:
-        $client = $this->getServiceLocator()->get('VuFind\Http')->createClient();
+        $client = $this->serviceLocator->get('VuFind\Http')->createClient();
 
         // Run the job!
         $runner = new HarvesterConsoleRunner(

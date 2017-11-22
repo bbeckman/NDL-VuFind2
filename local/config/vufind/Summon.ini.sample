@@ -1,0 +1,9 @@
+; IMPORTANT NOTE: By default, VuFind will not show any search results that
+; require "authenticated" status for visibility. Please configure the
+; access.SummonExtendedResults permission in permissions.ini to allow users to
+; see these results. You are responsible for complying with your license.
+
+; This section contains global settings affecting search behavior.
+[General]
+; Whether Summon is enabled
+enabled = false

@@ -26,7 +26,10 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFindTest\Auth;
-use VuFind\Auth\Database, Zend\Db\ResultSet\ResultSet, Zend\Stdlib\Parameters;
+
+use VuFind\Auth\Database;
+use Zend\Db\ResultSet\ResultSet;
+use Zend\Stdlib\Parameters;
 
 /**
  * Database authentication test class.
@@ -232,8 +235,8 @@ class DatabaseUnitTest extends \VuFindTest\Unit\DbTestCase
     protected function getRequest($post = [])
     {
         $post = new Parameters($post);
-        $request
-            = $this->getMock('Zend\Http\PhpEnvironment\Request', ['getPost']);
+        $request = $this->getMockBuilder('Zend\Http\PhpEnvironment\Request')
+            ->setMethods(['getPost'])->getMock();
         $request->expects($this->any())->method('getPost')
             ->will($this->returnValue($post));
         return $request;
@@ -248,8 +251,8 @@ class DatabaseUnitTest extends \VuFindTest\Unit\DbTestCase
      */
     protected function getDatabase($table)
     {
-        $tableManager
-            = $this->getMock('VuFind\Db\Table\PluginManager', ['get']);
+        $tableManager = $this->getMockBuilder('VuFind\Db\Table\PluginManager')
+            ->setMethods(['get'])->getMock();
         $tableManager->expects($this->once())->method('get')
             ->with($this->equalTo('User'))
             ->will($this->returnValue($table));

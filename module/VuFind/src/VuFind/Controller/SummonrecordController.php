@@ -26,7 +26,9 @@
  * @link     https://vufind.org Main Site
  */
 namespace VuFind\Controller;
+
 use Zend\Mvc\MvcEvent;
+use Zend\ServiceManager\ServiceLocatorInterface;
 
 /**
  * Summon Record Controller
@@ -41,15 +43,17 @@ class SummonrecordController extends AbstractRecord
 {
     /**
      * Constructor
+     *
+     * @param ServiceLocatorInterface $sm Service locator
      */
-    public function __construct()
+    public function __construct(ServiceLocatorInterface $sm)
     {
         // Override some defaults:
         $this->searchClassId = 'Summon';
         $this->fallbackDefaultTab = 'Description';
 
         // Call standard record controller initialization:
-        parent::__construct();
+        parent::__construct($sm);
     }
 
     /**
@@ -59,9 +63,9 @@ class SummonrecordController extends AbstractRecord
      */
     protected function resultScrollerActive()
     {
-        $config = $this->getServiceLocator()->get('VuFind\Config')->get('Summon');
-        return (isset($config->Record->next_prev_navigation)
-            && $config->Record->next_prev_navigation);
+        $config = $this->serviceLocator->get('VuFind\Config')->get('Summon');
+        return isset($config->Record->next_prev_navigation)
+            && $config->Record->next_prev_navigation;
     }
 
     /**

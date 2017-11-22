@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  ILS_Drivers
@@ -30,6 +30,7 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace VuFind\ILS\Driver;
+
 use VuFind\Exception\ILS as ILSException;
 
 /**
@@ -335,7 +336,9 @@ class PAIA extends DAIA
                     isset($array_response['error_description'])
                         ? $array_response['error_description'] : ' '
             ];
-        } elseif ($array_response['patron'] === $post_data['patron']) {
+        } elseif (isset($array_response['patron'])
+            && $array_response['patron'] === $post_data['patron']
+        ) {
             // on success patron_id is returned
             $details = [
                 'success' => true,
@@ -367,7 +370,7 @@ class PAIA extends DAIA
      */
     public function getCancelHoldDetails($checkOutDetails)
     {
-        return($checkOutDetails['cancel_details']);
+        return $checkOutDetails['cancel_details'];
     }
 
     /**
@@ -473,6 +476,7 @@ class PAIA extends DAIA
         // Not yet implemented
         return false;
     }
+
     /**
      * Place ILL Request
      *
@@ -581,7 +585,7 @@ class PAIA extends DAIA
             $paiaCurrencyPattern = "/^([0-9]+\.[0-9][0-9]) ([A-Z][A-Z][A-Z])$/";
             if (preg_match($paiaCurrencyPattern, $fee, $feeMatches)) {
                 // VuFind expects fees in PENNIES
-                return ($feeMatches[1] * 100);
+                return $feeMatches[1] * 100;
             }
             return $fee;
         };
@@ -624,9 +628,10 @@ class PAIA extends DAIA
     protected function getAdditionalFeeData($fee, $patron = null)
     {
         $additionalData = [];
-        // Add the item title using the about field,
-        // but only if this fee is caused by some item
-        if (isset($fee['item'])) {
+        // The title is always displayed to the user in fines view if no record can
+        // be found for current fee. So always populate the title with content of
+        // about field.
+        if (isset($fee['about'])) {
             $additionalData['title'] = $fee['about'];
         }
 
@@ -641,8 +646,6 @@ class PAIA extends DAIA
             ? $fee['about'] : null);
         $additionalData['item']       = (isset($fee['item'])
             ? $fee['item'] : null);
-        $additionalData['title']      = (isset($fee['title'])
-            ? $fee['title'] : null);
 
         return $additionalData;
     }
@@ -801,7 +804,7 @@ class PAIA extends DAIA
      */
     public function getRenewDetails($checkOutDetails)
     {
-        return($checkOutDetails['renew_details']);
+        return $checkOutDetails['renew_details'];
     }
 
     /**
@@ -1231,6 +1234,86 @@ class PAIA extends DAIA
     }
 
     /**
+     * Map a PAIA document to an array for use in generating a VuFind request
+     * (holds, storage retrieval, etc).
+     *
+     * @param array $doc Array of PAIA document to be mapped.
+     *
+     * @return array
+     */
+    protected function getBasicDetails($doc)
+    {
+        $result = [];
+
+        // item (0..1) URI of a particular copy
+        $result['item_id'] = (isset($doc['item']) ? $doc['item'] : '');
+
+        $result['cancel_details']
+            = (isset($doc['cancancel']) && $doc['cancancel'])
+            ? $result['item_id'] : '';
+
+        // edition (0..1) URI of a the document (no particular copy)
+        // hook for retrieving alternative ItemId in case PAIA does not
+        // the needed id
+        $result['id'] = (isset($doc['edition'])
+            ? $this->getAlternativeItemId($doc['edition']) : '');
+
+        $result['type'] = $this->paiaStatusString($doc['status']);
+
+        // storage (0..1) textual description of location of the document
+        $result['location'] = (isset($doc['storage']) ? $doc['storage'] : null);
+
+        // queue (0..1) number of waiting requests for the document or item
+        $result['position'] =  (isset($doc['queue']) ? $doc['queue'] : null);
+
+        // only true if status == 4
+        $result['available'] = false;
+
+        // about (0..1) textual description of the document
+        $result['title'] = (isset($doc['about']) ? $doc['about'] : null);
+
+        // PAIA custom field
+        // label (0..1) call number, shelf mark or similar item label
+        $result['callnumber'] = $this->getCallNumber($doc);
+
+        /*
+         * meaning of starttime and endtime depends on status:
+         *
+         * status | starttime
+         *        | endtime
+         * -------+--------------------------------
+         * 0      | -
+         *        | -
+         * 1      | when the document was reserved
+         *        | when the reserved document is expected to be available
+         * 2      | when the document was ordered
+         *        | when the ordered document is expected to be available
+         * 3      | when the document was lend
+         *        | when the loan period ends or ended (due)
+         * 4      | when the document is provided
+         *        | when the provision will expire
+         * 5      | when the request was rejected
+         *        | -
+         */
+
+        $result['create'] = (isset($doc['starttime'])
+            ? $this->convertDatetime($doc['starttime']) : '');
+
+        // Optional VuFind fields
+        /*
+        $result['reqnum'] = null;
+        $result['volume'] =  null;
+        $result['publication_year'] = null;
+        $result['isbn'] = null;
+        $result['issn'] = null;
+        $result['oclc'] = null;
+        $result['upc'] = null;
+        */
+
+        return $result;
+    }
+
+    /**
      * This PAIA helper function allows custom overrides for mapping of PAIA response
      * to getMyHolds data structure.
      *
@@ -1243,61 +1326,7 @@ class PAIA extends DAIA
         $results = [];
 
         foreach ($items as $doc) {
-            $result = [];
-
-            // item (0..1) URI of a particular copy
-            $result['item_id'] = (isset($doc['item']) ? $doc['item'] : '');
-
-            $result['cancel_details']
-                = (isset($doc['cancancel']) && $doc['cancancel'])
-                ? $result['item_id'] : '';
-
-            // edition (0..1) URI of a the document (no particular copy)
-            // hook for retrieving alternative ItemId in case PAIA does not
-            // the needed id
-            $result['id'] = (isset($doc['edition'])
-                ? $this->getAlternativeItemId($doc['edition']) : '');
-
-            $result['type'] = $this->paiaStatusString($doc['status']);
-
-            // storage (0..1) textual description of location of the document
-            $result['location'] = (isset($doc['storage']) ? $doc['storage'] : null);
-
-            // queue (0..1) number of waiting requests for the document or item
-            $result['position'] =  (isset($doc['queue']) ? $doc['queue'] : null);
-
-            // only true if status == 4
-            $result['available'] = false;
-
-            // about (0..1) textual description of the document
-            $result['title'] = (isset($doc['about']) ? $doc['about'] : null);
-
-            // PAIA custom field
-            // label (0..1) call number, shelf mark or similar item label
-            $result['callnumber'] = $this->getCallNumber($doc);
-
-            /*
-             * meaning of starttime and endtime depends on status:
-             *
-             * status | starttime
-             *        | endtime
-             * -------+--------------------------------
-             * 0      | -
-             *        | -
-             * 1      | when the document was reserved
-             *        | when the reserved document is expected to be available
-             * 2      | when the document was ordered
-             *        | when the ordered document is expected to be available
-             * 3      | when the document was lend
-             *        | when the loan period ends or ended (due)
-             * 4      | when the document is provided
-             *        | when the provision will expire
-             * 5      | when the request was rejected
-             *        | -
-             */
-
-            $result['create'] = (isset($doc['starttime'])
-                ? $this->convertDatetime($doc['starttime']) : '');
+            $result = $this->getBasicDetails($doc);
 
             if ($doc['status'] == '4') {
                 $result['expire'] = (isset($doc['endtime'])
@@ -1310,19 +1339,7 @@ class PAIA extends DAIA
             // status: provided (the document is ready to be used by the patron)
             $result['available'] = $doc['status'] == 4 ? true : false;
 
-            // Optional VuFind fields
-            /*
-            $result['reqnum'] = null;
-            $result['volume'] =  null;
-            $result['publication_year'] = null;
-            $result['isbn'] = null;
-            $result['issn'] = null;
-            $result['oclc'] = null;
-            $result['upc'] = null;
-            */
-
             $results[] = $result;
-
         }
         return $results;
     }
@@ -1340,55 +1357,9 @@ class PAIA extends DAIA
         $results = [];
 
         foreach ($items as $doc) {
-            $result = [];
-
-            // item (0..1) URI of a particular copy
-            $result['item_id'] = (isset($doc['item']) ? $doc['item'] : '');
-
-            $result['cancel_details']
-                = (isset($doc['cancancel']) && $doc['cancancel'])
-                ? $result['item_id'] : '';
-
-            // edition (0..1) URI of a the document (no particular copy)
-            // hook for retrieving alternative ItemId in case PAIA does not
-            // the needed id
-            $result['id'] = (isset($doc['edition'])
-                ? $this->getAlternativeItemId($doc['edition']) : '');
-
-            $result['type'] = $this->paiaStatusString($doc['status']);
-
-            // storage (0..1) textual description of location of the document
-            $result['location'] = (isset($doc['storage']) ? $doc['storage'] : null);
-
-            // queue (0..1) number of waiting requests for the document or item
-            $result['position'] =  (isset($doc['queue']) ? $doc['queue'] : null);
-
-            // only true if status == 4
-            $result['available'] = false;
-
-            // about (0..1) textual description of the document
-            $result['title'] = (isset($doc['about']) ? $doc['about'] : null);
-
-            // PAIA custom field
-            // label (0..1) call number, shelf mark or similar item label
-            $result['callnumber'] = $this->getCallNumber($doc);
-
-            $result['create'] = (isset($doc['starttime'])
-                ? $this->convertDatetime($doc['starttime']) : '');
-
-            // Optional VuFind fields
-            /*
-            $result['reqnum'] = null;
-            $result['volume'] =  null;
-            $result['publication_year'] = null;
-            $result['isbn'] = null;
-            $result['issn'] = null;
-            $result['oclc'] = null;
-            $result['upc'] = null;
-            */
+            $result = $this->getBasicDetails($doc);
 
             $results[] = $result;
-
         }
         return $results;
     }
@@ -1529,7 +1500,7 @@ class PAIA extends DAIA
             );
         }
         // return any result as error-handling is done elsewhere
-        return ($result->getBody());
+        return $result->getBody();
     }
 
     /**
@@ -1565,7 +1536,7 @@ class PAIA extends DAIA
             );
         }
         // return any result as error-handling is done elsewhere
-        return ($result->getBody());
+        return $result->getBody();
     }
 
     /**
@@ -1765,7 +1736,7 @@ class PAIA extends DAIA
     public function checkRequestIsValid($id, $data, $patron)
     {
         // TODO: make this more configurable
-        if (isset($patron['status']) && $patron['status']  == 0
+        if (isset($patron['status']) && $patron['status'] == 0
             && isset($patron['expires']) && $patron['expires'] > date('Y-m-d')
             && in_array('write_items', $this->getScope())
         ) {

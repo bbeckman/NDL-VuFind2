@@ -28,6 +28,7 @@
  * @link     https://vufind.org Main Page
  */
 namespace Finna\Controller;
+
 use Finna\Cover\Loader;
 
 /**
@@ -52,11 +53,15 @@ class CoverController extends \VuFind\Controller\CoverController
         $this->disableSessionWrites();  // avoid session write timing bug
         $width = $this->params()->fromQuery('w');
         $height = $this->params()->fromQuery('h');
-        // Use full-resolution image?
+        $size = $this->params()->fromQuery('size');
+        // Support for legacy fullres parameter
         $fullRes = $this->params()->fromQuery('fullres');
+        if ($fullRes) {
+            $size = 'large';
+        }
 
         $loader = $this->getLoader();
-        $loader->setParams($width, $height, $fullRes);
+        $loader->setParams($width, $height, $size);
 
         if ($id = $this->params()->fromQuery('id')) {
             $driver = $this->getRecordLoader()->load($id, 'Solr');
@@ -89,6 +94,10 @@ class CoverController extends \VuFind\Controller\CoverController
                         // Strip the data source prefix
                         $parts = explode('.', $driver->getUniqueID(), 2);
                         $filename = end($parts);
+                        // Remove beginning of the url from filename by exploding
+                        // it by %2F. Assign last part of it to the filename
+                        $parts = explode('%2F', $filename);
+                        $filename = end($parts);
                     }
                 } elseif (!empty($params['title'])) {
                     $filename = $params['title'];
@@ -98,7 +107,7 @@ class CoverController extends \VuFind\Controller\CoverController
                     $filename = preg_replace('/\.jpe?g/', '', $filename);
                     // Replace some characters for cleaner filenames and hopefully
                     // something that can be found with the search
-                    $filename = preg_replace('/[^\w_ -]/', ' ', $filename);
+                    $filename = preg_replace('/[^\w_ -]/', '_', $filename);
                     $filename .= '.jpg';
                     $headers->addHeaderLine(
                         'Content-Disposition', "inline; filename=$filename"
@@ -130,17 +139,17 @@ class CoverController extends \VuFind\Controller\CoverController
     {
         // Construct object for loading cover images if it does not already exist:
         if (!$this->loader) {
-            $cacheDir = $this->getServiceLocator()->get('VuFind\CacheManager')
+            $cacheDir = $this->serviceLocator->get('VuFind\CacheManager')
                 ->getCache('cover')->getOptions()->getCacheDir();
             $this->loader = new Loader(
                 $this->getConfig(),
-                $this->getServiceLocator()->get('VuFind\ContentCoversPluginManager'),
-                $this->getServiceLocator()->get('VuFindTheme\ThemeInfo'),
-                $this->getServiceLocator()->get('VuFind\Http')->createClient(),
+                $this->serviceLocator->get('VuFind\ContentCoversPluginManager'),
+                $this->serviceLocator->get('VuFindTheme\ThemeInfo'),
+                $this->serviceLocator->get('VuFind\Http')->createClient(),
                 $cacheDir
             );
             \VuFind\ServiceManager\Initializer::initInstance(
-                $this->loader, $this->getServiceLocator()
+                $this->loader, $this->serviceLocator
             );
         }
         return $this->loader;

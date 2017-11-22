@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  View_Helpers
@@ -41,6 +41,23 @@ namespace Finna\View\Helper\Root;
 class CheckboxFacetCounts extends \Zend\View\Helper\AbstractHelper
 {
     /**
+     * Config Reader
+     *
+     * @var \VuFind\Config\PluginManager
+     */
+    protected $configReader;
+
+    /**
+     * Constructor
+     *
+     * @param \VuFind\Config\PluginManager $configReader Config Reader
+     */
+    public function __construct(\VuFind\Config\PluginManager $configReader)
+    {
+        $this->configReader = $configReader;
+    }
+
+    /**
      * Return the count of records when checkbox filter is activated.
      *
      * @param array                       $checkboxFilter Checkbox filter
@@ -50,6 +67,12 @@ class CheckboxFacetCounts extends \Zend\View\Helper\AbstractHelper
      */
     public function __invoke($checkboxFilter, $results)
     {
+        if (!is_callable([$results, 'getBackendId'])
+            || 'Solr' !== $results->getBackendId()
+        ) {
+            return -1;
+        }
+
         $ret = 0;
 
         list($field, $value) = $results->getParams()
@@ -72,13 +95,11 @@ class CheckboxFacetCounts extends \Zend\View\Helper\AbstractHelper
             // when deduplication is enabled.
             // If we don't have a facet value for online_boolean it means we need to
             // do an additional lookup for online_str_mv.
-            $results = clone($results);
+            $results = clone $results;
             $params = $results->getParams();
             $options = $results->getOptions();
 
-            $searchConfig = $this->getView()->getHelperPluginManager()
-                ->getServiceLocator()->get('VuFind\Config')
-                ->get($options->getSearchIni());
+            $searchConfig = $this->configReader->get($options->getSearchIni());
             if (!empty($searchConfig->Records->sources)) {
                 $sources = explode(',', $searchConfig->Records->sources);
                 $sources = array_map(
@@ -105,5 +126,4 @@ class CheckboxFacetCounts extends \Zend\View\Helper\AbstractHelper
 
         return $ret;
     }
-
 }

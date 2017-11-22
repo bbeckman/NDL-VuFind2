@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Controller
@@ -27,8 +27,9 @@
  * @link     https://vufind.org/wiki/development:plugins:controllers Wiki
  */
 namespace Finna\Controller;
-use Zend\Console\Console,
-    Zend\Session\Container as SessionContainer;
+
+use Zend\Console\Console;
+use Zend\Session\Container as SessionContainer;
 
 /**
  * Online payment controller trait.
@@ -83,7 +84,7 @@ trait OnlinePaymentControllerTrait
      */
     protected function getOnlinePaymentHandler($driver)
     {
-        $onlinePayment = $this->getServiceLocator()->get('Finna\OnlinePayment');
+        $onlinePayment = $this->serviceLocator->get('Finna\OnlinePayment');
         if (!$onlinePayment->isEnabled($driver)) {
             return false;
         }
@@ -108,7 +109,7 @@ trait OnlinePaymentControllerTrait
     {
         return new SessionContainer(
             'OnlinePayment',
-            $this->getServiceLocator()->get('VuFind\SessionManager')
+            $this->serviceLocator->get('VuFind\SessionManager')
         );
     }
 
@@ -128,22 +129,32 @@ trait OnlinePaymentControllerTrait
 
         $catalog = $this->getILS();
 
-        // Check if online payment configuration exists for ILS-driver
-        $paymentConfig = $catalog->getConfig('onlinePayment');
+        // Check if online payment configuration exists for the ILS driver
+        $paymentConfig = $catalog->getConfig('onlinePayment', $patron);
         if (empty($paymentConfig)) {
             return;
         }
 
         // Check if payment handler is configured in datasources.ini
-        $onlinePayment = $this->getServiceLocator()->get('Finna\OnlinePayment');
+        $onlinePayment = $this->serviceLocator->get('Finna\OnlinePayment');
         if (!$onlinePayment->isEnabled($patron['source'])) {
             return;
         }
 
-        // Check if online payment is enabled for ILS-driver
+        // Check if online payment is enabled for the ILS driver
         if (!$catalog->checkFunction('markFeesAsPaid', $patron)) {
             return;
         }
+
+        // Check that mandatory settings exist
+        if (!isset($paymentConfig['currency'])) {
+            $this->handleError(
+                "Mandatory setting 'currency' missing from ILS driver for"
+                . " '{$patron['source']}'"
+            );
+            return false;
+        }
+
         $payableOnline = $catalog->getOnlinePayableAmount($patron);
 
         // Check if there is a payment in progress
@@ -181,7 +192,7 @@ trait OnlinePaymentControllerTrait
 
         $paymentParam = 'payment';
         $request = $this->getRequest();
-        $pay = $request->getQuery()->get('pay', $request->getPost('pay'));
+        $pay = $this->formWasSubmitted('pay-confirm');
         $payment = $request->getQuery()->get(
             $paymentParam, $request->getPost($paymentParam)
         );
@@ -197,7 +208,7 @@ trait OnlinePaymentControllerTrait
             }
             $finesUrl = $this->getServerUrl('myresearch-fines');
             $ajaxUrl = $this->getServerUrl('home') . 'AJAX';
-            list($driver,) = explode('.', $patron['cat_username'], 2);
+            list($driver, ) = explode('.', $patron['cat_username'], 2);
 
             $user = $this->getUser();
             if (!$user) {
@@ -205,7 +216,7 @@ trait OnlinePaymentControllerTrait
             }
 
             // Start payment
-            if (!($paymentHandler->startPayment(
+            $result = $paymentHandler->startPayment(
                 $finesUrl,
                 $ajaxUrl,
                 $user,
@@ -216,14 +227,15 @@ trait OnlinePaymentControllerTrait
                 $payableFines,
                 $paymentConfig['currency'],
                 $paymentParam
-            ))) {
+            );
+            if (!$result) {
                 $this->flashMessenger()->addMessage(
                     'online_payment_failed', 'error'
                 );
                 header("Location: " . $this->getServerUrl('myresearch-fines'));
             }
             exit();
-        } else if ($payment) {
+        } elseif ($payment) {
             // Payment response received.
 
             // AJAX/onlinePaymentNotify was called before the user returned to Finna.
@@ -256,7 +268,7 @@ trait OnlinePaymentControllerTrait
                     'online_payment_fines_changed', 'error'
                 );
                 unset($session->payment_fines_changed);
-            } else if (!empty($session->paymentOk)) {
+            } elseif (!empty($session->paymentOk)) {
                 $this->flashMessenger()->addMessage(
                     'online_payment_successful', 'success'
                 );
@@ -267,8 +279,13 @@ trait OnlinePaymentControllerTrait
                     $this->flashMessenger()->addMessage(
                         strip_tags($paymentPermittedForUser), 'error'
                     );
-                } else if (!empty($payableOnline['reason'])) {
+                } elseif (!empty($payableOnline['reason'])) {
                     $view->nonPayableReason = $payableOnline['reason'];
+                } elseif ($this->formWasSubmitted('pay')) {
+                    $view->setTemplate(
+                        'Helpers/OnlinePayment/terms-' . $view->paymentHandler
+                        . '.phtml'
+                    );
                 }
             }
         }
@@ -336,7 +353,7 @@ trait OnlinePaymentControllerTrait
                 = $userTable->select(
                     ['cat_username' => $t['cat_username'], 'id' => $t['user_id']]
                 )->current();
-            
+
             try {
                 $patron = $catalog->patronLogin(
                     $user['cat_username'], $user->getCatPassword()
@@ -394,7 +411,7 @@ trait OnlinePaymentControllerTrait
         }
 
         try {
-            $catalog->markFeesAsPaid($patron, $res['amount']);
+            $catalog->markFeesAsPaid($patron, $res['amount'], $tId);
             if (!$transactionTable->setTransactionRegistered($tId)) {
                 $this->handleError(
                     "Error updating transaction $transactionId status: registered"
@@ -409,9 +426,10 @@ trait OnlinePaymentControllerTrait
             );
             $this->handleException($e);
 
-            if (!$transactionTable->setTransactionRegistrationFailed(
+            $result = $transactionTable->setTransactionRegistrationFailed(
                 $tId, $e->getMessage()
-            )) {
+            );
+            if (!$result) {
                 $this->handleError(
                     "Error updating transaction $transactionId status: "
                     . 'registering failed'
@@ -446,7 +464,7 @@ trait OnlinePaymentControllerTrait
      */
     protected function handleError($msg)
     {
-        $this->setLogger($this->getServiceLocator()->get('VuFind\Logger'));
+        $this->setLogger($this->serviceLocator->get('VuFind\Logger'));
         $this->logError($msg);
     }
 
@@ -459,7 +477,7 @@ trait OnlinePaymentControllerTrait
      */
     protected function handleException($e)
     {
-        $this->setLogger($this->getServiceLocator()->get('VuFind\Logger'));
+        $this->setLogger($this->serviceLocator->get('VuFind\Logger'));
         if (!Console::isConsole()) {
             $this->logger->logException($e, new \Zend\Stdlib\Parameters());
         } else {

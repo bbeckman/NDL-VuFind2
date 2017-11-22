@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Service
@@ -27,8 +27,9 @@
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
 namespace Finna\Service;
-use Zend\Console\Console,
-    Zend\ServiceManager\ServiceManager;
+
+use Zend\Console\Console;
+use Zend\ServiceManager\ServiceManager;
 
 /**
  * Factory for various top-level VuFind services.
@@ -72,6 +73,8 @@ class Factory extends \VuFind\Service\Factory
     /**
      * Construct the cookie manager.
      *
+     * Finna: console check and default session name
+     *
      * @param ServiceManager $sm Service manager.
      *
      * @return \VuFind\Cookie\CookieManager
@@ -79,9 +82,31 @@ class Factory extends \VuFind\Service\Factory
     public static function getCookieManager(ServiceManager $sm)
     {
         if (Console::isConsole()) {
-            return false;
+            return new \VuFind\Cookie\CookieManager([]);
         }
-        return parent::getCookieManager($sm);
+
+        $config = $sm->get('VuFind\Config')->get('config');
+        $path = '/';
+        if (isset($config->Cookies->limit_by_path)
+            && $config->Cookies->limit_by_path
+        ) {
+            $path = $sm->get('Request')->getBasePath();
+            if (empty($path)) {
+                $path = '/';
+            }
+        }
+        $secure = isset($config->Cookies->only_secure)
+            ? $config->Cookies->only_secure
+            : false;
+        $domain = isset($config->Cookies->domain)
+            ? $config->Cookies->domain
+            : null;
+        $session_name = isset($config->Cookies->session_name)
+            ? $config->Cookies->session_name
+            : 'FINNA_SESSION';
+        return new \VuFind\Cookie\CookieManager(
+            $_COOKIE, $path, $domain, $secure, $session_name
+        );
     }
 
     /**
@@ -152,7 +177,7 @@ class Factory extends \VuFind\Service\Factory
             $config = $sm->get('VuFind\Config')->get('OrganisationInfo'),
             $sm->get('VuFind\CacheManager'),
             $sm->get('VuFind\Http'),
-            $sm->get('viewmanager')->getRenderer(),
+            $sm->get('ViewRenderer'),
             $sm->get('VuFind\Translator')
         );
     }
@@ -184,20 +209,43 @@ class Factory extends \VuFind\Service\Factory
             $sm->get('VuFind\Http'),
             $sm->get('VuFind\DbTablePluginManager'),
             $sm->get('VuFind\Logger'),
-            $sm->get('VuFind\Config')->get('datasources')
+            $sm->get('VuFind\Config')->get('datasources'),
+            $sm->get('VuFind\Translator')
         );
     }
 
     /**
-     * Construct the Search\Results Plugin Manager.
+     * Construct the PermissionManager.
      *
      * @param ServiceManager $sm Service manager.
      *
-     * @return \Finna\Search\Results\PluginManager
+     * @return \VuFind\Role\PermissionManager
      */
-    public static function getSearchResultsPluginManager(ServiceManager $sm)
+    public static function getPermissionManager(ServiceManager $sm)
     {
-        return static::getGenericPluginManager($sm, 'Search\Results');
+        $permManager = new \Finna\Role\PermissionManager(
+            $sm->get('VuFind\Config')->get('permissions')->toArray()
+        );
+        $permManager->setAuthorizationService(
+            $sm->get('ZfcRbac\Service\AuthorizationService')
+        );
+        return $permManager;
+    }
+
+    /**
+     * Construct the record loader.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return \VuFind\Record\Loader
+     */
+    public static function getRecordLoader(ServiceManager $sm)
+    {
+        return new \Finna\Record\Loader(
+            $sm->get('VuFind\Search'),
+            $sm->get('VuFind\RecordDriverPluginManager'),
+            $sm->get('VuFind\RecordCache')
+        );
     }
 
     /**
@@ -211,6 +259,59 @@ class Factory extends \VuFind\Service\Factory
     {
         return new \Finna\Config\SearchSpecsReader(
             $sm->get('VuFind\CacheManager')
+        );
+    }
+
+    /**
+     * Construct the SearchTabs helper.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return \VuFind\Search\SearchTabsHelper
+     */
+    public static function getSearchTabsHelper(ServiceManager $sm)
+    {
+        $config = $sm->get('VuFind\Config')->get('config');
+        $tabConfig = isset($config->SearchTabs)
+            ? $config->SearchTabs->toArray() : [];
+
+        // Remove MetaLib tab
+        unset($tabConfig['MetaLib']);
+
+        $filterConfig = isset($config->SearchTabsFilters)
+            ? $config->SearchTabsFilters->toArray() : [];
+        return new \VuFind\Search\SearchTabsHelper(
+            $sm->get('VuFind\SearchResultsPluginManager'),
+            $tabConfig, $filterConfig,
+            $sm->get('Application')->getRequest()
+        );
+    }
+
+    /**
+     * Construct the YAML reader.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return \VuFind\Config\YamlReader
+     */
+    public static function getYamlReader(ServiceManager $sm)
+    {
+        return new \Finna\Config\YamlReader(
+            $sm->get('VuFind\CacheManager')
+        );
+    }
+
+    /**
+     * Construct the SearchMemory helper.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return SearchMemory
+     */
+    public static function getSearchMemory(ServiceManager $sm)
+    {
+        return new \Finna\Search\Memory(
+            new \Zend\Session\Container('Search', $sm->get('VuFind\SessionManager'))
         );
     }
 }

@@ -113,7 +113,8 @@
 ;authenticationStrategy[] = Shibboleth
 ;authenticationStrategy[] = ILS
 ;authenticationStrategy[] = ILS-statCode
-;permission = finna.authorized
+;permission[] = finna.authorized
+;permission[] = access.EDSExtendedResults
 
 ; Admin access to finna cache clearing function. Normally no local configuration
 ; override needed.
@@ -128,4 +129,30 @@ permission = finna.cache
 ;require = ANY
 ;ipRange[] = 127.0.0.1
 ;ipRange[] = ::1
-;permission = finna.api
+;permission[] = access.api.Search
+;permission[] = access.api.Record
+
+; Acess to Finna Authentication API
+;[access.finna.api.auth]
+;require = ANY
+;ipRange[] = 127.0.0.1
+;ipRange[] = ::1
+;permission[] = access.finna.api.auth.backendlist
+;permission[] = access.finna.api.auth.librarycardlogin
+
+; Default configuration for the Primo module (allow everyone by default).
+[default.PrimoModule]
+role[] = guest
+role[] = loggedin
+permission = access.PrimoModule
+
+; Show staff view for all users by default
+[default.StaffViewTab]
+role[] = guest
+role[] = loggedin
+permission = access.StaffViewTab
+
+; By default, favorites are available to all logged-in users.
+[default.Favorites]
+role[] = loggedin
+permission = feature.Favorites

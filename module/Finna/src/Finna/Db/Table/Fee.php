@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Db_Table
@@ -26,6 +26,10 @@
  * @link     http://vufind.org   Main Site
  */
 namespace Finna\Db\Table;
+
+use VuFind\Db\Row\RowGateway;
+use VuFind\Db\Table\PluginManager;
+use Zend\Db\Adapter\Adapter;
 
 /**
  * Table Definition for online payment fee
@@ -40,10 +44,17 @@ class Fee extends \VuFind\Db\Table\Gateway
 {
     /**
      * Constructor
+     *
+     * @param Adapter       $adapter Database adapter
+     * @param PluginManager $tm      Table manager
+     * @param array         $cfg     Zend Framework configuration
+     * @param RowGateway    $rowObj  Row prototype object (null for default)
+     * @param string        $table   Name of database table to interface with
      */
-    public function __construct()
-    {
-        parent::__construct('finna_fee', 'Finna\Db\Row\Fee');
+    public function __construct(Adapter $adapter, PluginManager $tm, $cfg,
+        RowGateway $rowObj = null, $table = 'finna_fee'
+    ) {
+        parent::__construct($adapter, $tm, $cfg, $rowObj, $table);
     }
 
     /**

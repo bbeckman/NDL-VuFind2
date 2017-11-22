@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  ILS_Drivers
@@ -26,7 +26,9 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace Finna\ILS\Driver;
-use PDO, PDOException;
+
+use PDO;
+use PDOException;
 
 /**
  * Voyager Restful ILS Driver
@@ -212,10 +214,16 @@ class VoyagerRestful extends \VuFind\ILS\Driver\VoyagerRestful
             $blockReason = [];
 
             $blocks = $this->makeRequest($hierarchy, $params);
-            if ($blocks) {
-                $borrowingBlocks = $blocks->xpath(
-                    "//blocks/institution[@id='LOCAL']/borrowingBlock"
-                );
+            if ($blocks && isset($blocks->blocks->institution)) {
+                $borrowingBlocks = [];
+                foreach ($blocks->blocks->institution as $institution) {
+                    if (!$this->isLocalInst($institution->attributes()->id)) {
+                        continue;
+                    }
+                    foreach ($institution->borrowingBlock as $block) {
+                        $borrowingBlocks[] = $block;
+                    }
+                }
                 if (count($borrowingBlocks)) {
                     $blockReason[] = $this->translate('Borrowing Block Message');
                 }
@@ -236,6 +244,7 @@ class VoyagerRestful extends \VuFind\ILS\Driver\VoyagerRestful
                     }
                 }
             }
+            $blockReason = array_unique(array_map('trim', $blockReason));
             $this->putCachedData($cacheKey, $blockReason);
         }
         return empty($blockReason) ? false : $blockReason;
@@ -419,5 +428,62 @@ class VoyagerRestful extends \VuFind\ILS\Driver\VoyagerRestful
             );
         }
         return $result;
+    }
+
+    /**
+     * Check if request is valid
+     *
+     * This is responsible for determining if an item is requestable
+     *
+     * @param string $id     The Bib ID
+     * @param array  $data   An Array of item data
+     * @param patron $patron An array of patron data
+     *
+     * @return bool True if request is valid, false if not
+     */
+    public function checkRequestIsValid($id, $data, $patron)
+    {
+        if (isset($data['level']) && 'title' === $data['level']) {
+            if ($this->checkItemsExist) {
+                $exist = $this->itemsExist(
+                    $id,
+                    isset($holdDetails['requestGroupId'])
+                    ? $holdDetails['requestGroupId'] : null
+                );
+                if (!$exist) {
+                    return false;
+                }
+            }
+
+            if ((!$this->requestGroupsEnabled || isset($data['requestGroupId']))
+                && $this->checkItemsNotAvailable
+            ) {
+                $disabledGroups = [];
+                $key = 'disableAvailabilityCheckForRequestGroups';
+                if (isset($this->config['Holds'][$key])) {
+                    $disabledGroups = explode(':', $this->config['Holds'][$key]);
+                }
+                if (!isset($data['requestGroupId'])
+                    || !in_array($data['requestGroupId'], $disabledGroups)
+                ) {
+                    $available = $this->itemsAvailable(
+                        $id,
+                        isset($data['requestGroupId'])
+                        ? $data['requestGroupId'] : null
+                    );
+                    if ($available) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // Optional check that the patron doesn't already have the bib on loan
+        if ($this->checkLoans) {
+            if ($this->isRecordOnLoan($patron['id'], $id)) {
+                return false;
+            }
+        }
+        return parent::checkRequestIsValid($id, $data, $patron);
     }
 }

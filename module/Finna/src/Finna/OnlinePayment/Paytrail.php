@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  OnlinePayment
@@ -137,7 +137,7 @@ class Paytrail extends BaseHandler
             exit();
         }
 
-        if (!$this->createTransaction(
+        $success = $this->createTransaction(
             $orderNumber,
             $driver,
             $user->id,
@@ -146,7 +146,8 @@ class Paytrail extends BaseHandler
             $transactionFee,
             $currency,
             $fines
-        )) {
+        );
+        if (!$success) {
             return false;
         }
 
@@ -184,13 +185,14 @@ class Paytrail extends BaseHandler
             if (!$module = $this->initPaytrail()) {
                 return 'online_payment_failed';
             }
-            if (!$module->confirmPayment(
+            $success = $module->confirmPayment(
                 $params["ORDER_NUMBER"],
                 $params["TIMESTAMP"],
                 $params["PAID"],
                 $params["METHOD"],
                 $params["RETURN_AUTHCODE"]
-            )) {
+            );
+            if (!$success) {
                 $this->logger->err(
                     'Paytrail: error processing response: invalid checksum'
                 );
@@ -205,14 +207,13 @@ class Paytrail extends BaseHandler
                 'transactionId' => $orderNum,
                 'amount' => $amount
             ];
-        } else if ($status == self::PAYMENT_FAILURE) {
+        } elseif ($status == self::PAYMENT_FAILURE) {
             $this->setTransactionCancelled($orderNum);
             return 'online_payment_canceled';
         } else {
             $this->setTransactionUnknownResponse($orderNum, $status);
             return 'online_payment_failed';
         }
-
     }
 
     /**

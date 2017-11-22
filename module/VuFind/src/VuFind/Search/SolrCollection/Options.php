@@ -45,6 +45,7 @@ class Options extends \VuFind\Search\Solr\Options
      */
     public function __construct(\VuFind\Config\PluginManager $configLoader)
     {
+        $this->facetsIni = 'Collection';
         parent::__construct($configLoader);
 
         // Load sort preferences (or defaults if none in .ini file):
@@ -65,6 +66,17 @@ class Options extends \VuFind\Search\Solr\Options
     }
 
     /**
+     * Return the route name for the facet list action. Returns false to cover
+     * unimplemented support.
+     *
+     * @return string|bool
+     */
+    public function getFacetListAction()
+    {
+        return 'search-collectionfacetlist';
+    }
+
+    /**
      * Load all recommendation settings from the relevant ini file.  Returns an
      * associative array where the key is the location of the recommendations (top
      * or side) and the value is the settings found in the file (which may be either
@@ -81,5 +93,15 @@ class Options extends \VuFind\Search\Solr\Options
         return isset($searchSettings->Recommend)
             ? $searchSettings->Recommend->toArray()
             : ['side' => ['CollectionSideFacets:Facets::Collection:true']];
+    }
+
+    /**
+     * Return the route name for the search results action.
+     *
+     * @return string
+     */
+    public function getSearchAction()
+    {
+        return 'collection';
     }
 }

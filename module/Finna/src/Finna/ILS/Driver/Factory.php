@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  ILS_Drivers
@@ -26,6 +26,7 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace Finna\ILS\Driver;
+
 use Zend\ServiceManager\ServiceManager;
 
 /**
@@ -61,6 +62,29 @@ class Factory
     }
 
     /**
+     * Factory for KohaRest driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return KohaRest
+     */
+    public static function getKohaRest(ServiceManager $sm)
+    {
+        $sessionFactory = function ($namespace) use ($sm) {
+            $manager = $sm->getServiceLocator()->get('VuFind\SessionManager');
+            return new \Zend\Session\Container("KohaRest_$namespace", $manager);
+        };
+        $kohaRest = new KohaRest(
+            $sm->getServiceLocator()->get('VuFind\DateConverter'),
+            $sessionFactory
+        );
+        $kohaRest->setCacheStorage(
+            $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
+        );
+        return $kohaRest;
+    }
+
+    /**
      * Factory for MultiBackend driver.
      *
      * @param ServiceManager $sm Service manager.
@@ -71,12 +95,37 @@ class Factory
     {
         $mb = new MultiBackend(
             $sm->getServiceLocator()->get('VuFind\Config'),
-            $sm->getServiceLocator()->get('VuFind\ILSAuthenticator')
+            $sm->getServiceLocator()->get('VuFind\ILSAuthenticator'),
+            $sm
         );
         $mb->setCacheStorage(
             $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
         );
         return $mb;
+    }
+
+    /**
+     * Factory for Sierra REST driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return SierraRest
+     */
+    public static function getSierraRest(ServiceManager $sm)
+    {
+        $sessionFactory = function ($namespace) use ($sm) {
+            $manager = $sm->getServiceLocator()->get('VuFind\SessionManager');
+            return new \Zend\Session\Container("SierraRest_$namespace", $manager);
+        };
+
+        $driver = new SierraRest(
+            $sm->getServiceLocator()->get('VuFind\DateConverter'),
+            $sessionFactory
+        );
+        $driver->setCacheStorage(
+            $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
+        );
+        return $driver;
     }
 
     /**
@@ -128,5 +177,23 @@ class Factory
             $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
         );
         return $aws;
+    }
+
+    /**
+     * Factory for Gemini driver.
+     *
+     * @param ServiceManager $sm Service manager.
+     *
+     * @return Gemini
+     */
+    public static function getGemini(ServiceManager $sm)
+    {
+        $gemini = new Gemini(
+            $sm->getServiceLocator()->get('VuFind\DateConverter')
+        );
+        $gemini->setCacheStorage(
+            $sm->getServiceLocator()->get('VuFind\CacheManager')->getCache('object')
+        );
+        return $gemini;
     }
 }

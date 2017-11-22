@@ -26,6 +26,7 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFindTest\SMS;
+
 use VuFind\SMS\Clickatell;
 
 /**
@@ -194,6 +195,6 @@ class ClickatellTest extends \VuFindTest\Unit\TestCase
      */
     protected function getMockClient()
     {
-        return $this->getMock('Zend\Http\Client');
+        return $this->createMock('Zend\Http\Client');
     }
 }

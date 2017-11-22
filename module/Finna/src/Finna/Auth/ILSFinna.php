@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Authentication
@@ -26,6 +26,7 @@
  * @link     https://vufind.org/wiki/development:plugins:authentication_handlers Wiki
  */
 namespace Finna\Auth;
+
 use VuFind\Exception\Auth as AuthException;
 
 /**
@@ -49,9 +50,10 @@ trait ILSFinna
     public function getSecondaryLoginFieldLabel($target)
     {
         $catalog = $this->getCatalog();
-        if (!$catalog->checkCapability(
+        $check = $catalog->checkCapability(
             'getConfig', ['cat_username' => "$target.login"]
-        )) {
+        );
+        if (!$check) {
             return '';
         }
         $config = $this->getCatalog()->getConfig(
@@ -103,7 +105,16 @@ trait ILSFinna
         }
 
         // Check to see if we already have an account for this user:
-        $user = $this->getUserTable()->getByUsername($info[$usernameField]);
+        $userTable = $this->getUserTable();
+        if (!empty($info['id'])) {
+            $user = $userTable->getByCatalogId($info['id'], false);
+            if (empty($user)) {
+                $user = $userTable->getByUsername($info[$usernameField]);
+                $user->saveCatalogId($info['id']);
+            }
+        } else {
+            $user = $userTable->getByUsername($info[$usernameField]);
+        }
 
         // No need to store the ILS password in VuFind's main password field:
         $user->password = '';

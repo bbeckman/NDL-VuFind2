@@ -26,6 +26,7 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFind\Role;
+
 use Zend\ServiceManager\Config;
 use Zend\ServiceManager\FactoryInterface;
 use Zend\ServiceManager\ServiceLocatorInterface;
@@ -70,9 +71,9 @@ class DynamicRoleProviderFactory implements FactoryInterface
         ServiceLocatorInterface $serviceLocator, array $rbacConfig
     ) {
         $pm = new PermissionProvider\PluginManager(
-            new Config($rbacConfig['vufind_permission_provider_manager'])
+            $serviceLocator->getServiceLocator(),
+            $rbacConfig['vufind_permission_provider_manager']
         );
-        $pm->setServiceLocator($serviceLocator->getServiceLocator());
         return $pm;
     }
 

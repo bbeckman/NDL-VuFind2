@@ -5,7 +5,7 @@
  * PHP version 5
  *
  * Copyright (C) Villanova University 2010.
- * Copyright (C) The National Library of Finland 2015-2016.
+ * Copyright (C) The National Library of Finland 2015-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  View_Helpers
@@ -143,6 +143,20 @@ class Record extends \VuFind\View\Helper\Root\Record
     }
 
     /**
+     * Get record format in the requested export format.  For legal values, see
+     * the export helper's getFormatsForRecord() method.
+     *
+     * @param string $format Export format to display
+     *
+     * @return string        Exported data
+     */
+    public function getExportFormat($format)
+    {
+        $format = strtolower($format);
+        return $this->renderTemplate('export-' . $format . '-format.phtml');
+    }
+
+    /**
      * Render the link of the specified type.
      *
      * @param string $type    Link type
@@ -177,11 +191,12 @@ class Record extends \VuFind\View\Helper\Root\Record
      * Render an HTML checkbox control for the current record.
      *
      * @param string $idPrefix Prefix for checkbox HTML ids
+     * @param string $formAttr ID of form for [form] attribute
      * @param bool   $label    Whether to enclose the actual checkbox in a label
      *
      * @return string
      */
-    public function getCheckbox($idPrefix = '', $label = false)
+    public function getCheckbox($idPrefix = '', $formAttr = false, $label = false)
     {
         static $checkboxCount = 0;
         $id = $this->driver->getSourceIdentifier() . '|'
@@ -192,25 +207,34 @@ class Record extends \VuFind\View\Helper\Root\Record
             'prefix' => $idPrefix,
             'label' => $label
         ];
+        if ($formAttr) {
+            $context['formAttr'] = $formAttr;
+        }
         return $this->contextHelper->renderInContext(
             'record/checkbox.phtml', $context
         );
     }
 
     /**
-     * Return all record images (thumbnail and large).
+     * Return all record image urls as array keys.
      *
      * @return array
      */
-    public function getAllRecordImages()
+    public function getAllRecordImageUrls()
     {
-        $large = $this->driver->tryMethod('getAllThumbnails', ['large']);
-        $large = !empty($large) ? array_keys($large) : [];
-
-        $thumb = $this->driver->tryMethod('getAllThumbnails', ['thumb']);
-        $thumb = !empty($thumb) ? array_keys($thumb) : [];
-
-        return array_merge($thumb, $large);
+        $images = $this->driver->tryMethod('getAllImages', ['']);
+        if (empty($images)) {
+            return [];
+        }
+        $urls = [];
+        foreach ($images as $image) {
+            $urls[] = $image['urls']['small'];
+            $urls[] = $image['urls']['medium'];
+            if (isset($image['urls']['large'])) {
+                $urls[] = $image['urls']['large'];
+            }
+        }
+        return array_flip($urls);
     }
 
     /**
@@ -222,12 +246,71 @@ class Record extends \VuFind\View\Helper\Root\Record
      */
     public function getRecordImage($size)
     {
+        $images = $this->getAllImages('');
+
         $params = $this->driver->tryMethod('getRecordImage', [$size]);
         if (empty($params)) {
-            return $this->getThumbnail($size);
+            $params = [
+                'url' => $this->getThumbnail($size),
+                'description' => '',
+                'rights' => []
+            ];
         }
         return $params;
+    }
 
+    /**
+     * Return an array of all record images in all sizes
+     *
+     * @param string $language   Language for description and rights
+     * @param bool   $thumbnails Whether to include thumbnail links if no image links
+     * are found
+     *
+     * @return array
+     */
+    public function getAllImages($language, $thumbnails = true)
+    {
+        $sizes = ['small', 'medium', 'large', 'master'];
+        $recordId = $this->driver->getUniqueID();
+        $images = $this->driver->tryMethod('getAllImages', [$language]);
+        if (null === $images) {
+            $images = [];
+        }
+        if (empty($images) && $thumbnails) {
+            $urls = [];
+            foreach ($sizes as $size) {
+                if ($thumb = $this->driver->getThumbnail($size)) {
+                    $params = is_array($thumb) ? $thumb : [
+                        'id' => $recordId
+                    ];
+                    $params['index'] = 0;
+                    $params['size'] = $size;
+                    $urls[$size] = $params;
+                }
+            }
+            if ($urls) {
+                $images[] = [
+                    'urls' => $urls,
+                    'description' => '',
+                    'rights' => []
+                ];
+            }
+        } else {
+            foreach ($images as $idx => &$image) {
+                foreach ($sizes as $size) {
+                    if (!isset($image['urls'][$size])) {
+                        continue;
+                    }
+                    $params = [
+                        'id' => $recordId,
+                        'index' => $idx,
+                        'size' => $size
+                    ];
+                    $image['urls'][$size] = $params;
+                }
+            }
+        }
+        return $images;
     }
 
     /**
@@ -239,7 +322,7 @@ class Record extends \VuFind\View\Helper\Root\Record
      */
     public function getNumOfRecordImages($size)
     {
-        $images = $this->driver->trymethod('getAllThumbnails', [$size]);
+        $images = $this->driver->trymethod('getAllImages', ['']);
         return count($images);
     }
 
@@ -295,14 +378,14 @@ class Record extends \VuFind\View\Helper\Root\Record
      *
      * @param array $urls      Array of URLs in the format returned by
      *                         getURLs and getOnlineURLs.
-     * @param array $imageURLs Array of record image URLs.
+     * @param array $imageURLs Array of record image URLs as keys.
      *
      * @return boolean
      */
     public function containsNonImageURL($urls, $imageURLs)
     {
         foreach ($urls as $url) {
-            if (!in_array($url['url'], $imageURLs)) {
+            if (!isset($imageURLs[$url['url']])) {
                 return true;
             }
         }

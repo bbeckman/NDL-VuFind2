@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Controller
@@ -26,7 +26,9 @@
  * @link     https://vufind.org/wiki/development:plugins:controllers Wiki
  */
 namespace Finna\Controller;
+
 use Zend\Escaper\Escaper;
+
 /**
  * Finna record controller trait.
  *
@@ -61,7 +63,7 @@ trait RecordControllerTrait
      */
     protected function modifyLastSearchURL()
     {
-        $memory  = $this->getServiceLocator()->get('VuFind\Search\Memory');
+        $memory  = $this->serviceLocator->get('VuFind\Search\Memory');
 
         if ($last = $memory->retrieve()) {
             $parts = parse_url($last);

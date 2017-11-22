@@ -27,6 +27,8 @@
  */
 namespace Finna\Controller;
 
+use Zend\ServiceManager\ServiceLocatorInterface;
+
 /**
  * External Authentication/Authorization Controller
  *
@@ -42,10 +44,14 @@ class ExternalAuthController extends \VuFind\Controller\ExternalAuthController
 {
     /**
      * Constructor
+     *
+     * @param ServiceLocatorInterface $sm Service locator
      */
-    public function __construct()
+    public function __construct(ServiceLocatorInterface $sm)
     {
         $this->ezproxyRequiredPermission = 'finna.authorized';
+
+        parent::__construct($sm);
     }
 
     /**

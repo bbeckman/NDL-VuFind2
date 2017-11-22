@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Search_Favorites
@@ -26,6 +26,12 @@
  * @link     http://vufind.org   Main Site
  */
 namespace Finna\Search\Favorites;
+
+use VuFind\Db\Table\Resource as ResourceTable;
+use VuFind\Db\Table\UserList as ListTable;
+use VuFind\Db\Table\UserResource as UserResourceTable;
+use VuFind\Record\Loader;
+use VuFindSearch\Service as SearchService;
 
 /**
  * Search Favorites Results
@@ -39,6 +45,35 @@ namespace Finna\Search\Favorites;
 class Results extends \VuFind\Search\Favorites\Results
 {
     /**
+     * UserResource table
+     *
+     * @var UserResourceTable
+     */
+    protected $userResourceTable;
+
+    /**
+     * Constructor
+     *
+     * @param \VuFind\Search\Base\Params $params            Object representing user
+     * search parameters.
+     * @param SearchService              $searchService     Search service
+     * @param Loader                     $recordLoader      Record loader
+     * @param ResourceTable              $resourceTable     Resource table
+     * @param ListTable                  $listTable         UserList table
+     * @param UserResourceTable          $userResourceTable UserResource table
+     */
+    public function __construct(\VuFind\Search\Base\Params $params,
+        SearchService $searchService, Loader $recordLoader,
+        ResourceTable $resourceTable, ListTable $listTable,
+        UserResourceTable $userResourceTable
+    ) {
+        parent::__construct(
+            $params, $searchService, $recordLoader, $resourceTable, $listTable
+        );
+        $this->userResourceTable = $userResourceTable;
+    }
+
+    /**
      * Support method for performAndProcessSearch -- perform a search based on the
      * parameters passed to the object.
      *
@@ -46,23 +81,14 @@ class Results extends \VuFind\Search\Favorites\Results
      */
     protected function performSearch()
     {
-        $authManager = $this->serviceLocator->get('VuFind\AuthManager');
-        $table = $this->getTable('UserResource');
         $list = $this->getListObject();
         $sort = $this->getParams()->getSort();
 
         if ($sort == 'custom_order'
             && (empty($list)
-            || !$table->isCustomOrderAvailable($list->id))
+            || !$this->userResourceTable->isCustomOrderAvailable($list->id))
         ) {
             $sort = 'id desc';
-        }
-
-        $sortNewestAddedFirst = $sort == 'id desc';
-        if ($sortNewestAddedFirst) {
-            // Set sort option to 'id' (ascending), since we reverse the
-            // results to a descending (newest first) order (see below).
-            $this->getParams()->setSort('id');
         }
 
         $this->getParams()->setSort($sort);
@@ -82,9 +108,6 @@ class Results extends \VuFind\Search\Favorites\Results
             }
             ksort($records);
             $this->results = array_values($records);
-        } else if ($sortNewestAddedFirst) {
-            $this->getParams()->setSort($sort);
-            $this->results = array_reverse($this->results);
         }
     }
 
@@ -117,8 +140,7 @@ class Results extends \VuFind\Search\Favorites\Results
             if (null === $listId) {
                 $this->list = null;
             } else {
-                $table = $this->getTable('UserList');
-                $this->list = $table->getExisting($listId);
+                $this->list = $this->listTable->getExisting($listId);
             }
         }
         return $this->list;

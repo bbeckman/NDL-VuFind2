@@ -26,6 +26,7 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFindTest\Mink;
+
 use Behat\Mink\Element\Element;
 
 /**
@@ -104,7 +105,7 @@ class CombinedSearchTest extends \VuFindTest\Unit\MinkTestCase
         $session = $this->getMinkSession();
         $session->visit($this->getVuFindUrl() . '/Combined');
         $page = $session->getPage();
-        $this->findCss($page, '.searchForm [name="lookfor"]')
+        $this->findCss($page, '#searchForm_lookfor')
             ->setValue('id:"testsample1" OR id:"theplus+andtheminus-"');
         $this->findCss($page, '.btn.btn-primary')->click();
         $this->snooze();
@@ -127,7 +128,7 @@ class CombinedSearchTest extends \VuFindTest\Unit\MinkTestCase
         $session = $this->getMinkSession();
         $session->visit($this->getVuFindUrl() . '/Combined');
         $page = $session->getPage();
-        $this->findCss($page, '.searchForm [name="lookfor"]')
+        $this->findCss($page, '#searchForm_lookfor')
             ->setValue('id:"testsample1" OR id:"theplus+andtheminus-"');
         $this->findCss($page, '.btn.btn-primary')->click();
         $this->snooze();
@@ -149,7 +150,7 @@ class CombinedSearchTest extends \VuFindTest\Unit\MinkTestCase
         $session = $this->getMinkSession();
         $session->visit($this->getVuFindUrl() . '/Combined');
         $page = $session->getPage();
-        $this->findCss($page, '.searchForm [name="lookfor"]')
+        $this->findCss($page, '#searchForm_lookfor')
             ->setValue('id:"testsample1" OR id:"theplus+andtheminus-"');
         $this->findCss($page, '.btn.btn-primary')->click();
         $this->snooze();

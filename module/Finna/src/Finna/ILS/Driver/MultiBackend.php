@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  ILSdrivers
@@ -27,9 +27,8 @@
  */
 namespace Finna\ILS\Driver;
 
-use VuFind\Exception\ILS as ILSException,
-    Zend\ServiceManager\ServiceLocatorAwareInterface,
-    Zend\ServiceManager\ServiceLocatorInterface;
+use VuFind\Exception\ILS as ILSException;
+use VuFind\I18n\Translator\TranslatorAwareInterface;
 
 /**
  * Multiple Backend Driver.
@@ -44,7 +43,10 @@ use VuFind\Exception\ILS as ILSException,
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
+    implements TranslatorAwareInterface
 {
+    use \VuFind\I18n\Translator\TranslatorAwareTrait;
+
     /**
      * Change Password
      *
@@ -63,6 +65,29 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
         $item = $this->putCachedData($cacheKey, null);
 
         return parent::changePassword($details);
+    }
+
+    /**
+     * Get available login targets (drivers enabled for login)
+     *
+     * @return string[] Source ID's
+     */
+    public function getLoginDrivers()
+    {
+        $drivers = parent::getLoginDrivers();
+        if (!isset($this->config['General']['sort_login_drivers'])
+            || $this->config['General']['sort_login_drivers']
+        ) {
+            usort(
+                $drivers,
+                function ($a, $b) {
+                    $at = $this->translate("source_$a", null, $a);
+                    $bt = $this->translate("source_$b", null, $b);
+                    return strcmp($at, $bt);
+                }
+            );
+        }
+        return $drivers;
     }
 
     /**
@@ -85,24 +110,95 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
     }
 
     /**
-     * Update Phone
+     * Update patron's phone number
      *
-     * Attempts to update patron's phone number
+     * @param array  $patron Patron array
+     * @param string $phone  Phone number
      *
-     * @param array $patron  The patron array from patronLogin
-     * @param array $details New phone number
+     * @throws ILSException
      *
-     * @return mixed An array of data on the request including
-     * whether or not it was successful and a system message (if available)
+     * @return array Associative array of the results
      */
-    public function updatePhone($patron, $details)
+    public function updatePhone($patron, $phone)
     {
         $source = $this->getSource($patron['cat_username']);
         $driver = $this->getDriver($source);
         if ($driver
-            && $this->methodSupported($driver, 'updatePhone', [$patron, $details])
+            && $this->methodSupported($driver, 'updatePhone', [$patron, $phone])
         ) {
             return $driver->updatePhone(
+                $this->stripIdPrefixes($patron, $source), $phone
+            );
+        }
+        throw new ILSException('No suitable backend driver found');
+    }
+
+    /**
+     * Update patron's SMS number
+     *
+     * @param array  $patron Patron array
+     * @param string $number SMS number
+     *
+     * @throws ILSException
+     *
+     * @return array Associative array of the results
+     */
+    public function updateSmsNumber($patron, $number)
+    {
+        $source = $this->getSource($patron['cat_username']);
+        $driver = $this->getDriver($source);
+        if ($driver
+            && $this->methodSupported($driver, 'updatePhone', [$patron, $number])
+        ) {
+            return $driver->updateSmsNumber(
+                $this->stripIdPrefixes($patron, $source), $number
+            );
+        }
+        throw new ILSException('No suitable backend driver found');
+    }
+
+    /**
+     * Update patron's email address
+     *
+     * @param array  $patron Patron array
+     * @param String $email  Email address
+     *
+     * @throws ILSException
+     *
+     * @return array Associative array of the results
+     */
+    public function updateEmail($patron, $email)
+    {
+        $source = $this->getSource($patron['cat_username']);
+        $driver = $this->getDriver($source);
+        if ($driver
+            && $this->methodSupported($driver, 'updateEmail', [$patron, $email])
+        ) {
+            return $driver->updateEmail(
+                $this->stripIdPrefixes($patron, $source), $email
+            );
+        }
+        throw new ILSException('No suitable backend driver found');
+    }
+
+    /**
+     * Update patron contact information
+     *
+     * @param array $patron  Patron array
+     * @param array $details Associative array of patron contact information
+     *
+     * @throws ILSException
+     *
+     * @return array Associative array of the results
+     */
+    public function updateAddress($patron, $details)
+    {
+        $source = $this->getSource($patron['cat_username']);
+        $driver = $this->getDriver($source);
+        if ($driver
+            && $this->methodSupported($driver, 'updateAddress', [$patron, $details])
+        ) {
+            return $driver->updateAddress(
                 $this->stripIdPrefixes($patron, $source), $details
             );
         }
@@ -110,24 +206,25 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
     }
 
     /**
-     * Update Phone
+     * Update patron messaging settings
      *
-     * Attempts to update patron's email address
+     * @param array $patron  Patron array
+     * @param array $details Associative array of messaging settings
      *
-     * @param array $patron  The patron array from patronLogin
-     * @param array $details New email address
+     * @throws ILSException
      *
-     * @return mixed An array of data on the request including
-     * whether or not it was successful and a system message (if available)
+     * @return array Associative array of the results
      */
-    public function updateEmail($patron, $details)
+    public function updateMessagingSettings($patron, $details)
     {
         $source = $this->getSource($patron['cat_username']);
         $driver = $this->getDriver($source);
         if ($driver
-            && $this->methodSupported($driver, 'updateEmail', [$patron, $details])
+            && $this->methodSupported(
+                $driver, 'updateMessagingSettings', [$patron, $details]
+            )
         ) {
-            return $driver->updateEmail(
+            return $driver->updateMessagingSettings(
                 $this->stripIdPrefixes($patron, $source), $details
             );
         }
@@ -162,6 +259,33 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
     }
 
     /**
+     * Change Request Status
+     *
+     * Attempts to change the status of a specific hold request
+     *
+     * @param array $patron      The patron array from patronLogin
+     * @param array $holdDetails The request details
+     *
+     * @return mixed An array of data on the request including
+     * whether or not it was successful and a system message (if available)
+     */
+    public function changeRequestStatus($patron, $holdDetails)
+    {
+        $source = $this->getSource($patron['cat_username']);
+        $driver = $this->getDriver($source);
+        if ($driver
+            && $this->methodSupported(
+                $driver, 'changeRequestStatus', [$patron, $holdDetails]
+            )
+        ) {
+            return $driver->changeRequestStatus(
+                $this->stripIdPrefixes($patron, $source), $holdDetails
+            );
+        }
+        throw new ILSException('No suitable backend driver found');
+    }
+
+    /**
      * Return total amount of fees that may be paid online.
      *
      * @param array $patron Patron
@@ -188,13 +312,14 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
      *
      * This is called after a successful online payment.
      *
-     * @param array $patron Patron.
-     * @param int   $amount Amount to be registered as paid.
+     * @param array  $patron        Patron.
+     * @param int    $amount        Amount to be registered as paid.
+     * @param string $transactionId Transaction ID.
      *
      * @throws ILSException
      * @return boolean success
      */
-    public function markFeesAsPaid($patron, $amount)
+    public function markFeesAsPaid($patron, $amount, $transactionId)
     {
         $source = $this->getSource($patron['cat_username']);
         $driver = $this->getDriver($source);
@@ -202,7 +327,7 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
             && $this->methodSupported($driver, 'markFeesAsPaid')
         ) {
             return $driver->markFeesAsPaid(
-                $this->stripIdPrefixes($patron, $source), $amount
+                $this->stripIdPrefixes($patron, $source), $amount, $transactionId
             );
         }
         throw new ILSException('Online payment not supported');
@@ -222,7 +347,7 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
      */
     public function patronLogin($username, $password, $secondary = null)
     {
-        $cacheKey = "patron|$username";
+        $cacheKey = "patron|$username|$password";
         $item = $this->getCachedData($cacheKey);
         if ($item !== null) {
             return $item;
@@ -243,6 +368,71 @@ class MultiBackend extends \VuFind\ILS\Driver\MultiBackend
             }
             $this->putCachedData($cacheKey, $patron);
             return $patron;
+        }
+        throw new ILSException('No suitable backend driver found');
+    }
+
+    /**
+     * Get Patron Transaction History
+     *
+     * This is responsible for retrieving all historical transactions
+     * (i.e. checked out items) by a specific patron.
+     *
+     * @param array $patron The patron array from patronLogin
+     * @param array $params Retrieval params
+     *
+     * @return array        Array of the patron's transactions
+     */
+    public function getMyTransactionHistory($patron, $params)
+    {
+        $source = $this->getSource($patron['cat_username']);
+        $driver = $this->getDriver($source);
+        if ($driver) {
+            $transactions = $driver->getMyTransactionHistory(
+                $this->stripIdPrefixes($patron, $source), $params
+            );
+            return $this->addIdPrefixes($transactions, $source);
+        }
+        throw new ILSException('No suitable backend driver found');
+    }
+
+    /**
+     * Purge Patron Transaction History
+     *
+     * @param array $patron The patron array from patronLogin
+     *
+     * @return array Associative array of the results
+     */
+    public function purgeTransactionHistory($patron)
+    {
+        $source = $this->getSource($patron['cat_username']);
+        $driver = $this->getDriver($source);
+        if ($driver) {
+            return $driver->purgeTransactionHistory(
+                $this->stripIdPrefixes($patron, $source)
+            );
+        }
+        throw new ILSException('No suitable backend driver found');
+    }
+
+    /**
+     * Update Patron Transaction History State
+     *
+     * Enable or disable patron's transaction history
+     *
+     * @param array $patron The patron array from patronLogin
+     * @param mixed $state  Any of the configured values
+     *
+     * @return array Associative array of the results
+     */
+    public function updateTransactionHistoryState($patron, $state)
+    {
+        $source = $this->getSource($patron['cat_username']);
+        $driver = $this->getDriver($source);
+        if ($driver) {
+            return $driver->updateTransactionHistoryState(
+                $this->stripIdPrefixes($patron, $source), $state
+            );
         }
         throw new ILSException('No suitable backend driver found');
     }

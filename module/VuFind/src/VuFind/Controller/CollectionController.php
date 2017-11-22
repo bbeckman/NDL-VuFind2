@@ -27,6 +27,9 @@
  */
 namespace VuFind\Controller;
 
+use Zend\Config\Config;
+use Zend\ServiceManager\ServiceLocatorInterface;
+
 /**
  * Collection Controller
  *
@@ -41,12 +44,13 @@ class CollectionController extends AbstractRecord
     /**
      * Constructor
      *
-     * @param \Zend\Config\Config $config VuFind configuration
+     * @param ServiceLocatorInterface $sm     Service manager
+     * @param Config                  $config VuFind configuration
      */
-    public function __construct(\Zend\Config\Config $config)
+    public function __construct(ServiceLocatorInterface $sm, Config $config)
     {
         // Call standard record controller initialization:
-        parent::__construct();
+        parent::__construct($sm);
 
         // Set default tab, if specified:
         if (isset($config->Collections->defaultTab)) {
@@ -61,7 +65,7 @@ class CollectionController extends AbstractRecord
      */
     protected function getRecordTabConfig()
     {
-        $cfg = $this->getServiceLocator()->get('Config');
+        $cfg = $this->serviceLocator->get('Config');
         return $cfg['vufind']['recorddriver_collection_tabs'];
     }
 
@@ -89,8 +93,8 @@ class CollectionController extends AbstractRecord
      */
     protected function resultScrollerActive()
     {
-        $config = $this->getServiceLocator()->get('VuFind\Config')->get('config');
-        return (isset($config->Record->next_prev_navigation)
-            && $config->Record->next_prev_navigation);
+        $config = $this->serviceLocator->get('VuFind\Config')->get('config');
+        return isset($config->Record->next_prev_navigation)
+            && $config->Record->next_prev_navigation;
     }
 }

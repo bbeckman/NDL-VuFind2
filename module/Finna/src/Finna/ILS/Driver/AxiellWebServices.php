@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  ILS_Drivers
@@ -28,15 +28,15 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace Finna\ILS\Driver;
-use SoapClient, SoapFault, SoapHeader, File_MARC, PDO, PDOException, DOMDocument,
-    VuFind\Exception\Date as DateException,
-    VuFind\Exception\ILS as ILSException,
-    VuFind\I18n\Translator\TranslatorAwareInterface as TranslatorAwareInterface,
-    Zend\Validator\EmailAddress as EmailAddressValidator;
-use VuFind\Exception\Date;
-use Zend\Db\Sql\Ddl\Column\Boolean;
+
+use DOMDocument;
+use SoapClient;
 use VuFind\Config\Locator;
-use VuFind\View\Helper\Root\Translate;
+use VuFind\Exception\Date;
+use VuFind\Exception\Date as DateException;
+use VuFind\Exception\ILS as ILSException;
+use VuFind\I18n\Translator\TranslatorAwareInterface as TranslatorAwareInterface;
+use Zend\Db\Sql\Ddl\Column\Boolean;
 
 /**
  * Axiell Web Services ILS Driver
@@ -72,6 +72,27 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
      * @var string
      */
     protected $defaultPickUpLocation;
+
+    /**
+     * Excluded pickup locations
+     *
+     * @var array
+     */
+    protected $excludePickUpLocations;
+
+    /**
+     * Default request group
+     *
+     * @var bool|string
+     */
+    protected $defaultRequestGroup;
+
+    /**
+     * Whether request groups are enabled
+     *
+     * @var bool
+     */
+    protected $requestGroupsEnabled;
 
     /**
      * Regional hold
@@ -158,22 +179,21 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
     protected $holdingsBranchOrder;
 
     /**
-     * Message Settings
+     * Institution settings for single reservation queue
      *
-     * The Variable method_none determines if "no notification" option is selectable
+     * @var Boolean
+     */
+    protected $singleReservationQueue = false;
+
+    /**
+     * Messaging settings to be shown in the interface
      *
      * @var array
      */
     protected $messagingSettings = [
-        'pickUpNotice' => [
-            'method_none' => false
-        ],
-        'overdueNotice' => [
-            'method_none' => false
-        ],
-        'dueDateAlert' => [
-            'method_none' => false
-        ]
+        'pickUpNotice' => [],
+        'overdueNotice' => [],
+        'dueDateAlert' => []
      ];
 
     /**
@@ -313,8 +333,30 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             $this->defaultPickUpLocation = false;
         }
 
+        $this->excludePickUpLocations
+            = isset($this->config['Holds']['excludePickUpLocations'])
+            ? explode(':', $this->config['Holds']['excludePickUpLocations']) : [];
+
+        $this->defaultRequestGroup
+            = isset($this->config['Holds']['defaultRequestGroup'])
+            ? $this->config['Holds']['defaultRequestGroup'] : false;
+        if ($this->defaultRequestGroup === 'user-selected') {
+            $this->defaultRequestGroup = false;
+        }
+
         $this->regionalHold = isset($this->config['Holds']['regionalHold'])
           ? $this->config['Holds']['regionalHold'] : false;
+
+        $this->requestGroupsEnabled
+            = isset($this->config['Holds']['extraHoldFields'])
+        && in_array(
+            'requestGroup',
+            explode(':', $this->config['Holds']['extraHoldFields'])
+        );
+
+        $this->singleReservationQueue
+            = isset($this->config['Holds']['singleReservationQueue'])
+            ? $this->config['Holds']['singleReservationQueue'] : false;
 
         if (isset($this->config['Debug']['durationLogPrefix'])) {
             $this->durationLogPrefix = $this->config['Debug']['durationLogPrefix'];
@@ -329,30 +371,30 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
         }
         $this->holdingsOrganisationOrder
             = isset($this->config['Holdings']['holdingsOrganisationOrder'])
-            ? explode(":", $this->config['Holdings']['holdingsOrganisationOrder'])
+            ? explode(':', $this->config['Holdings']['holdingsOrganisationOrder'])
             : [];
         $this->holdingsOrganisationOrder
             = array_flip($this->holdingsOrganisationOrder);
         $this->holdingsBranchOrder
             = isset($this->config['Holdings']['holdingsBranchOrder'])
-            ? explode(":", $this->config['Holdings']['holdingsBranchOrder'])
+            ? explode(':', $this->config['Holdings']['holdingsBranchOrder'])
             : [];
         $this->holdingsBranchOrder = array_flip($this->holdingsBranchOrder);
 
-        if (isset($this->config['messagingSettings']['pickUpNoticeMethodNone'])) {
-            $this->messagingSettings['pickUpNotice']['method_none']
-                = $this->config['messagingSettings']['pickUpNoticeMethodNone'];
-        }
+        $this->messagingSettings['pickUpNotice']
+            = isset($this->config['messagingSettings']['pickUpNotice'])
+            ? explode(':', $this->config['messagingSettings']['pickUpNotice'])
+            : [];
 
-        if (isset($this->config['messagingSettings']['overdueNoticeMethodNone'])) {
-            $this->messagingSettings['overdueNotice']['method_none']
-                = $this->config['messagingSettings']['overdueNoticeMethodNone'];
-        }
+        $this->messagingSettings['overdueNotice']
+            = isset($this->config['messagingSettings']['overdueNotice'])
+            ? explode(':', $this->config['messagingSettings']['overdueNotice'])
+            : [];
 
-        if (isset($this->config['messagingSettings']['dueDateAlertMethodNone'])) {
-            $this->messagingSettings['dueDateAlert']['method_none']
-                = $this->config['messagingSettings']['dueDateAlertMethodNone'];
-        }
+        $this->messagingSettings['dueDateAlert']
+            = isset($this->config['messagingSettings']['dueDateAlert'])
+            ? explode(':', $this->config['messagingSettings']['dueDateAlert'])
+            : [];
     }
 
     /**
@@ -375,6 +417,8 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
         $id = !empty($holdDetails['item_id'])
             ? $holdDetails['item_id'] : $holdDetails['id'];
 
+        $holdType = $this->getHoldType($holdDetails);
+
         $function = 'getReservationBranches';
         $functionResult = 'getReservationBranchesResult';
         $conf = [
@@ -384,7 +428,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             'language' => $this->getLanguage(),
             'country' => 'FI',
             'reservationEntities' => $id,
-            'reservationType' => $this->regionalHold ? 'regional' : 'normal'
+            'reservationType' => $holdType
         ];
 
         $result = $this->doSOAPRequest(
@@ -419,15 +463,26 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             // should be included in the location name
 
             if (is_object($organisation->branches->branch)) {
+                $locationID
+                    = $organisationID . '.' . $organisation->branches->branch->id;
+                if (in_array($locationID, $this->excludePickUpLocations)) {
+                    continue;
+                }
+
                 $locationsList[] = [
-                    'locationID' =>
-                       $organisationID . '.' . $organisation->branches->branch->id,
+                    'locationID' => $locationID,
                     'locationDisplay' => $organisation->branches->branch->name
                 ];
             } else {
                 foreach ($organisation->branches->branch as $branch) {
+                    $locationID
+                        = $organisationID . '.' . $branch->id;
+                    if (in_array($locationID, $this->excludePickUpLocations)) {
+                        continue;
+                    }
+
                     $locationsList[] = [
-                        'locationID' => $organisationID . '.' . $branch->id,
+                        'locationID' => $locationID,
                         'locationDisplay' => $branch->name
                     ];
                 }
@@ -475,8 +530,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
      */
     public function getDefaultRequestGroup($patron = false, $holdDetails = null)
     {
-        $requestGroups = $this->getRequestGroups(0, 0);
-        return $requestGroups[0]['id'];
+        return $this->defaultRequestGroup;
     }
 
     /**
@@ -495,8 +549,20 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
      */
     public function getRequestGroups($bibId, $patronId, $holdDetails = null)
     {
-        // Request Groups are not used for reservations
-        return false;
+        if (!$this->requestGroupsEnabled) {
+            return false;
+        }
+        $requestGroups = [
+            [
+                'id'   => 'normal',
+                'name' => 'axiell_normal'
+            ],
+            [
+                'id'   => 'regional',
+                'name' => 'axiell_regional'
+            ]
+        ];
+        return $requestGroups;
     }
 
     /**
@@ -543,6 +609,8 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
         $functionResult = 'addReservationResult';
         $functionParam = 'addReservationParam';
 
+        $holdType = $this->getHoldType($holdDetails);
+
         $conf = [
             'arenaMember'  => $this->arenaMember,
             'user'         => $username,
@@ -550,7 +618,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             'language'     => 'en',
             'reservationEntities' => $entityId,
             'reservationSource' => $reservationSource,
-            'reservationType' => $this->regionalHold ? 'regional' : 'normal',
+            'reservationType' => $holdType,
             'organisationId' => $organisation,
             'pickUpBranchId' => $branch,
             'validFromDate' => $validFromDate,
@@ -665,7 +733,6 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
      */
     public function changePickupLocation($patron, $holdDetails)
     {
-        global $configArray;
         $username = $patron['cat_username'];
         $password = $patron['cat_password'];
         $pickupLocationId = $holdDetails['pickupLocationId'];
@@ -954,35 +1021,45 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
                             );
                         }
 
+                        $holdable
+                            = $branch->reservationButtonStatus == 'reservationOk';
+                        $requests = 0;
+                        if (!$this->singleReservationQueue
+                            && isset($branch->nofReservations)
+                        ) {
+                            $requests = $branch->nofReservations;
+                        }
+                        $availabilityInfo = [
+                            'available' => $nofAvailableForLoan,
+                            'displayText' => $status,
+                            'reservations' => isset($branch->nofReservations)
+                                ? $branch->nofReservations : 0,
+                            'ordered' => $nofOrdered,
+                            'total' => $nofTotal,
+                        ];
+                        $callnumber = isset($department->shelfMark)
+                            ? ($department->shelfMark) : '';
+
                         $holding = [
-                           'id' => $id,
-                           'barcode' => $id,
-                           'item_id' => $reservableId,
-                           'holdings_id' => $group,
-                           'availability'
-                              => $available || $status == 'On Reference Desk',
-                           'availabilityInfo' => [
-                               'available' => $nofAvailableForLoan,
-                               'displayText' => $status,
-                               'reservations' => isset($branch->nofReservations)
-                                   ? $branch->nofReservations : 0,
-                               'ordered' => $nofOrdered,
-                               'total' => $nofTotal,
-                            ],
-                           'status' => $status,
-                           'location' => $group,
-                           'organisation_id' => $organisationId,
-                           'branch' => $branchName,
-                           'branch_id' => $branchId,
-                           'department' => $departmentName,
-                           'duedate' => $dueDate,
-                           'addLink' => $journalInfo,
-                           'callnumber' => isset($department->shelfMark)
-                               ? ($department->shelfMark) : '',
-                           'is_holdable'
-                              => $branch->reservationButtonStatus == 'reservationOk',
-                           'collapsed' => true,
-                           'reserve' => null
+                            'id' => $id,
+                            'barcode' => $id,
+                            'item_id' => $reservableId,
+                            'holdings_id' => $group,
+                            'availability' => $available,
+                            'availabilityInfo' => $availabilityInfo,
+                            'status' => $status,
+                            'location' => $group,
+                            'organisation_id' => $organisationId,
+                            'branch' => $branchName,
+                            'branch_id' => $branchId,
+                            'department' => $departmentName,
+                            'duedate' => $dueDate,
+                            'addLink' => $journalInfo,
+                            'callnumber' => $callnumber,
+                            'is_holdable' => $holdable,
+                            'collapsed' => true,
+                            'requests_placed' => $requests,
+                            'reserve' => null
                         ];
                         if ($journalInfo) {
                             $holding['journalInfo'] = $journalInfo;
@@ -1021,11 +1098,13 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             if (isset($item['availabilityInfo']['ordered'])) {
                 $orderedTotal += $item['availabilityInfo']['ordered'];
             }
-            if (isset($item['availabilityInfo']['reservations'])) {
-                $reservations = max(
-                    $reservationsTotal,
-                    $item['availabilityInfo']['reservations']
-                );
+            if ($this->singleReservationQueue
+                && isset($item['availabilityInfo']['reservations'])
+            ) {
+                $reservationsTotal
+                    = max(
+                        $reservationsTotal, $item['availabilityInfo']['reservations']
+                    );
             }
             $locations[$item['location']] = true;
             if (!$journal && $item['is_holdable']) {
@@ -1040,7 +1119,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
            'available' => $availableTotal,
            'ordered' => $orderedTotal,
            'total' => $itemsTotal,
-           'reservations' => $reservations,
+           'reservations' => $reservationsTotal,
            'locations' => count($locations),
            'holdable' => $holdable,
            'availability' => null,
@@ -1112,7 +1191,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
         $firstname = implode(' ', $names);
 
         $user = [
-            'id' => $username,
+            'id' => $info->backendPatronId,
             'cat_username' => $username,
             'cat_password' => $password,
             'lastname' => $lastname,
@@ -1122,7 +1201,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
         ];
 
         $userCached = [
-            'id' => $username,
+            'id' => $info->backendPatronId,
             'cat_username' => $username,
             'cat_password' => $password,
             'lastname' => $lastname,
@@ -1189,36 +1268,48 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             }
         }
 
-        $userCached['messagingServices'] = [];
-        $services = ['pickUpNotice', 'overdueNotice', 'dueDateAlert'];
+        $validServices = [
+           'pickUpNotice'  => [
+               'letter', 'email', 'sms', 'none'
+           ],
+           'overdueNotice' => [
+               'letter', 'email', 'sms', 'none'
+           ],
+           'dueDateAlert' => [
+               'email', 'none'
+           ]
+        ];
 
-        foreach ($services as $service) {
+        $services = [];
+        foreach ($validServices as $service => $validMethods) {
+            $typeLabel = 'dueDateAlert' === $service
+                ? $this->translate(
+                    "messaging_settings_type_dueDateAlertEmail"
+                )
+                : $this->translate("messaging_settings_type_$service");
             $data = [
                 'active' => false,
-                'type' => $this->translate("messaging_settings_type_$service")
+                'type' => $typeLabel,
+                'sendMethods' => []
             ];
-            if (isset($this->messagingSettings[$service]['method_none'])
-                && $this->messagingSettings[$service]['method_none']
-            ) {
-                $data['sendMethods'] = [
-                    'none' => ['active' => false, 'type' => 'none']
-                ];
-            } else {
-                $data['sendMethods'] = [];
+            if ($this->messagingSettings[$service]) {
+                foreach ($this->messagingSettings[$service] as $methodKey) {
+                    if (in_array($methodKey, $validMethods)
+                    ) {
+                        $data['sendMethods'] += [
+                            "$methodKey" => [
+                                'active' => false,
+                                'type' => $methodKey
+                            ]
+                        ];
+                    } else {
+                        $this->error(
+                            "Messaging settings for $service are invalid: $methodKey"
+                        );
+                    }
+                }
             }
-
-            if ($service == 'dueDateAlert') {
-                $data['sendMethods'] += [
-                    'email' => ['active' => false, 'type' => 'email']
-                ];
-            } else {
-                $data['sendMethods'] += [
-                    'letter' => ['active' => false, 'type' => 'letter'],
-                    'email' => ['active' => false, 'type' => 'email'],
-                    'sms' => ['active' => false, 'type' => 'sms']
-                ];
-            }
-            $userCached['messagingServices'][$service] = $data;
+            $services[$service] = $data;
         }
 
         if (isset($info->messageServices)) {
@@ -1233,18 +1324,13 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
 
                 foreach ($sendMethods as $method) {
                     $methodType = isset($method->sendMethod->value)
-                        ? $method->sendMethod->value : 'none';
-                    $userCached['messagingServices'][$serviceType]['sendMethods']
-                        [$methodType]['active']
-                            = isset($method->sendMethod->isActive)
+                        ? $this->mapCode($method->sendMethod->value) : 'none';
+                    $services[$serviceType]['sendMethods'][$methodType]['active']
+                        = isset($method->sendMethod->isActive)
                             && $method->sendMethod->isActive === 'yes';
                 }
 
-                foreach ($userCached['messagingServices'][$serviceType]
-                    ['sendMethods'] as $key => &$data) {
-
-                    $typeLabel
-                        = $this->translate("messaging_settings_type_$serviceType");
+                foreach ($services[$serviceType]['sendMethods'] as $key => &$data) {
                     $methodLabel
                         = $this->translate("messaging_settings_method_$key");
 
@@ -1264,14 +1350,13 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
                     $data['method'] = $methodLabel;
                 }
 
-                if (isset($userCached['messagingServices'][$serviceType])) {
-                    $userCached['messagingServices'][$serviceType]['active']
-                        = $active;
-                    $userCached['messagingServices'][$serviceType]['numOfDays']
-                        = $numOfDays;
+                if (isset($services[$serviceType])) {
+                    $services[$serviceType]['active'] = $active;
+                    $services[$serviceType]['numOfDays'] = $numOfDays;
                 }
             }
         }
+        $userCached['messagingServices'] = $services;
 
         $this->putCachedData($cacheKey, $userCached);
 
@@ -1358,7 +1443,6 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
                 'title' => $title,
                 'duedate' => $loan->loanDueDate,
                 'renewable' => (string)$loan->loanStatus->isRenewable == 'yes',
-                'barcode' => $loan->id,
                 'message' => $message,
                 'renewalCount' => max(
                     [0,
@@ -1535,7 +1619,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
                 'position' =>
                    isset($reservation->queueNo) ? $reservation->queueNo : '-',
                 'available' => $reservation->reservationStatus == 'fetchable',
-                'modifiable' => $reservation->reservationStatus == 'active',
+                'is_editable' => $reservation->isEditable == 'yes',
                 'item_id' => '',
                 'requestId' => $reservation->id,
                 'volume' =>
@@ -1544,6 +1628,12 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
                 'publication_year' =>
                    isset($reservation->catalogueRecord->publicationYear)
                        ? $reservation->catalogueRecord->publicationYear : '',
+                'requestGroup' =>
+                   isset($reservation->reservationType)
+                   && $this->requestGroupsEnabled
+                   ? "axiell_$reservation->reservationType"
+                   : '',
+                'in_transit' => $reservation->reservationStatus == 'inTransit',
                 'title' => $title
             ];
             $holdsList[] = $hold;
@@ -1572,7 +1662,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
      */
     public function getRenewDetails($checkoutDetails)
     {
-        return $checkoutDetails['barcode'];
+        return $checkoutDetails['item_id'];
     }
 
     /**
@@ -1642,7 +1732,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
     }
 
     /**
-     * Update patron phone number
+     * Update patron's phone number
      *
      * @param array  $patron Patron array
      * @param string $phone  Phone number
@@ -1716,10 +1806,10 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
     }
 
     /**
-     * Set patron email address
+     * Update patron's email address
      *
      * @param array  $patron Patron array
-     * @param String $email  User Email
+     * @param String $email  Email address
      *
      * @throws ILSException
      *
@@ -2030,7 +2120,7 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
     {
         $editionA = $a['journalInfo']['edition'];
         $editionB = $b['journalInfo']['edition'];
-        if ($editionA ==  $editionB) {
+        if ($editionA == $editionB) {
             $a['location'] = $a['journalInfo']['location'];
             $b['location'] = $b['journalInfo']['location'];
             return $this->defaultHoldingsSortFunction($a, $b);
@@ -2097,10 +2187,10 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
         } else {
             $key = 'branch_id';
             $sortOrder = $this->holdingsBranchOrder;
-                $locationA
-                    = $a['location'] . ' ' . $a['branch'] . ' ' . $a['department'];
-                $locationB
-                    = $b['location'] . ' ' . $b['branch'] . ' ' . $b['department'];
+            $locationA
+                = $a['location'] . ' ' . $a['branch'] . ' ' . $a['department'];
+            $locationB
+                = $b['location'] . ' ' . $b['branch'] . ' ' . $b['department'];
         }
 
         $orderA = isset($sortOrder[$a[$key]]) ? $sortOrder[$a[$key]] : null;
@@ -2133,6 +2223,24 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
         return mktime(
             0, 0, 0, date('m') + $m, date('d') + $d, date('Y') + $y
         );
+    }
+
+    /**
+     * Function for determining the type of Hold
+     *
+     * @param array $holdDetails Hold details
+     *
+     * @return string
+     */
+    protected function getHoldType($holdDetails)
+    {
+        if ($this->requestGroupsEnabled && !empty($holdDetails['requestGroupId'])
+        ) {
+            $holdType = $holdDetails['requestGroupId'];
+        } else {
+            $holdType = $this->regionalHold ? 'regional' : 'normal';
+        }
+        return $holdType;
     }
 
     /**
@@ -2178,8 +2286,8 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             'isRenewedToday'        => 'Renewed today',
             'isOverdue'             => 'renew_item_overdue',
             'maxNofRenewals'        => 'renew_item_limit',
-            'patronIsDeniedLoan'    => 'fine_limit_patron',
-            'patronHasDebt'         => 'fine_limit_patron',
+            'patronIsDeniedLoan'    => 'renew_denied',
+            'patronHasDebt'         => 'renew_debt',
             'patronIsInvoiced'      => 'renew_item_patron_is_invoiced',
             'renewalIsDenied'       => 'renew_denied',
             'ReservationDenied'     => 'hold_error_denied'
@@ -2189,6 +2297,27 @@ class AxiellWebServices extends \VuFind\ILS\Driver\AbstractBase
             return $statuses[$status];
         }
         return $status;
+    }
+
+    /**
+     * Map codes
+     *
+     * @param string $code as a string
+     *
+     * @return string Mapped code
+     */
+    protected function mapCode($code)
+    {
+        $statuses =  [
+            //Map messaging settings
+            'snailMail'             => 'letter',
+            'ilsDefined'            => 'none'
+        ];
+
+        if (isset($statuses[$code])) {
+            return $statuses[$code];
+        }
+        return $code;
     }
 
     /**

@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Db_Table
@@ -26,9 +26,6 @@
  * @link     https://vufind.org Main Page
  */
 namespace Finna\Db\Table;
-use VuFind\Exception\LoginRequired as LoginRequiredException,
-    VuFind\Exception\RecordMissing as RecordMissingException,
-    Zend\Db\Sql\Expression;
 
 /**
  * Table Definition for user_list
@@ -42,14 +39,22 @@ use VuFind\Exception\LoginRequired as LoginRequiredException,
 class UserList extends \VuFind\Db\Table\UserList
 {
     /**
-     * Constructor
+     * Retrieve user's list object by title.
      *
-     * @param \Zend\Session\Container $session Session container (must use same
-     * namespace as container provided to \VuFind\View\Helper\Root\UserList).
+     * @param int    $userId User id
+     * @param string $title  Title of the list to retrieve
+     *
+     * @return \Finna\Db\Row\UserList|false User list row or false if not found
      */
-    public function __construct(\Zend\Session\Container $session)
+    public function getByTitle($userId, $title)
     {
-        parent::__construct($session);
-        $this->rowClass = 'Finna\Db\Row\UserList';
+        if (!is_numeric($userId)) {
+            return false;
+        }
+
+        $callback = function ($select) use ($userId, $title) {
+            $select->where->equalTo('user_id', $userId)->equalTo('title', $title);
+        };
+        return $this->select($callback)->current();
     }
 }

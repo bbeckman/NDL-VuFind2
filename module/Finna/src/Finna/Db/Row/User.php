@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Db_Row
@@ -140,6 +140,22 @@ class User extends \VuFind\Db\Row\User
             return false;
         }
         return true;
+    }
+
+    /**
+     * Save ILS ID.
+     *
+     * @param string $catId Catalog ID to save.
+     *
+     * @return mixed        The output of the save method.
+     * @throws \VuFind\Exception\PasswordSecurity
+     */
+    public function saveCatalogId($catId)
+    {
+        if (isset($this->config->Site->institution)) {
+            $catId = $this->config->Site->institution . ":$catId";
+        }
+        return parent::saveCatalogId($catId);
     }
 
     /**

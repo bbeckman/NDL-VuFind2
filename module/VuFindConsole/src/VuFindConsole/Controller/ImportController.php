@@ -26,7 +26,9 @@
  * @link     https://vufind.org/wiki/development:plugins:controllers Wiki
  */
 namespace VuFindConsole\Controller;
-use VuFind\XSLT\Importer, Zend\Console\Console;
+
+use VuFind\XSLT\Importer;
+use Zend\Console\Console;
 
 /**
  * This controller handles various command-line tools
@@ -122,8 +124,7 @@ class ImportController extends AbstractBase
     protected function performImport($xml, $properties, $index = 'Solr',
         $testMode = false
     ) {
-        $importer = new Importer();
-        $importer->setServiceLocator($this->getServiceLocator());
+        $importer = new Importer($this->serviceLocator);
         $importer->save($xml, $properties, $index, $testMode);
     }
 
@@ -139,7 +140,7 @@ class ImportController extends AbstractBase
         $testMode = $request->getParam('test-only') ? true : false;
         $index = $request->getParam('index', 'SolrWeb');
 
-        $configLoader = $this->getServiceLocator()->get('VuFind\Config');
+        $configLoader = $this->serviceLocator->get('VuFind\Config');
         $crawlConfig = $configLoader->get('webcrawl');
 
         // Get the time we started indexing -- we'll delete records older than this
@@ -158,7 +159,7 @@ class ImportController extends AbstractBase
 
         // Skip Solr operations if we're in test mode.
         if (!$testMode) {
-            $solr = $this->getServiceLocator()->get('VuFind\Solr\Writer');
+            $solr = $this->serviceLocator->get('VuFind\Solr\Writer');
             if ($verbose) {
                 Console::writeLine("Deleting old records (prior to $startTime)...");
             }

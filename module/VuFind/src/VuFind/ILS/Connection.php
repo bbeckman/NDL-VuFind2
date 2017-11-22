@@ -30,9 +30,10 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace VuFind\ILS;
-use VuFind\Exception\ILS as ILSException,
-    VuFind\ILS\Driver\DriverInterface,
-    VuFind\I18n\Translator\TranslatorAwareInterface;
+
+use VuFind\Exception\ILS as ILSException;
+use VuFind\I18n\Translator\TranslatorAwareInterface;
+use VuFind\ILS\Driver\DriverInterface;
 use Zend\Log\LoggerAwareInterface;
 
 /**
@@ -372,7 +373,7 @@ class Connection implements TranslatorAwareInterface, LoggerAwareInterface
             && $this->checkCapability('cancelHolds', [$params ?: []])
         ) {
             $response = ['function' => "cancelHolds"];
-        } else if (isset($this->config->cancel_holds_enabled)
+        } elseif (isset($this->config->cancel_holds_enabled)
             && $this->config->cancel_holds_enabled == true
             && $this->checkCapability('getCancelHoldLink', [$params ?: []])
         ) {
@@ -407,7 +408,7 @@ class Connection implements TranslatorAwareInterface, LoggerAwareInterface
             && $this->checkCapability('renewMyItems', [$params ?: []])
         ) {
             $response = ['function' => "renewMyItems"];
-        } else if (isset($this->config->renewals_enabled)
+        } elseif (isset($this->config->renewals_enabled)
             && $this->config->renewals_enabled == true
             && $this->checkCapability('renewMyItemsLink', [$params ?: []])
         ) {
@@ -612,6 +613,29 @@ class Connection implements TranslatorAwareInterface, LoggerAwareInterface
     }
 
     /**
+     * Check Historic Loans
+     *
+     * A support method for checkFunction(). This is responsible for checking
+     * the driver configuration to determine if the system supports historic
+     * loans.
+     *
+     * @param array $functionConfig Function configuration
+     * @param array $params         Patron data
+     *
+     * @return mixed On success, an associative array with specific function keys
+     * and values; on failure, false.
+     *
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+     */
+    protected function checkMethodgetMyTransactionHistory($functionConfig, $params)
+    {
+        if ($this->checkCapability('getMyTransactionHistory', [$params ?: []])) {
+            return $functionConfig;
+        }
+        return false;
+    }
+
+    /**
      * Get proper help text from the function config
      *
      * @param string|array $helpText Help text(s)
@@ -642,9 +666,8 @@ class Connection implements TranslatorAwareInterface, LoggerAwareInterface
     public function checkRequestIsValid($id, $data, $patron)
     {
         try {
-            if ($this->checkCapability(
-                'checkRequestIsValid', [$id, $data, $patron]
-            )) {
+            $params = [$id, $data, $patron];
+            if ($this->checkCapability('checkRequestIsValid', $params)) {
                 return $this->getDriver()->checkRequestIsValid($id, $data, $patron);
             }
         } catch (\Exception $e) {
@@ -674,9 +697,10 @@ class Connection implements TranslatorAwareInterface, LoggerAwareInterface
     public function checkStorageRetrievalRequestIsValid($id, $data, $patron)
     {
         try {
-            if ($this->checkCapability(
+            $check = $this->checkCapability(
                 'checkStorageRetrievalRequestIsValid', [$id, $data, $patron]
-            )) {
+            );
+            if ($check) {
                 return $this->getDriver()->checkStorageRetrievalRequestIsValid(
                     $id, $data, $patron
                 );
@@ -707,9 +731,8 @@ class Connection implements TranslatorAwareInterface, LoggerAwareInterface
     public function checkILLRequestIsValid($id, $data, $patron)
     {
         try {
-            if ($this->checkCapability(
-                'checkILLRequestIsValid', [$id, $data, $patron]
-            )) {
+            $params = [$id, $data, $patron];
+            if ($this->checkCapability('checkILLRequestIsValid', $params)) {
                 return $this->getDriver()->checkILLRequestIsValid(
                     $id, $data, $patron
                 );

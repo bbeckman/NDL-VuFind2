@@ -28,9 +28,9 @@
  */
 namespace VuFindTest\Backend\Solr\Json\Response;
 
+use PHPUnit_Framework_TestCase;
 use VuFindSearch\Backend\Solr\Response\Json\RecordCollection;
 use VuFindTest\RecordDriver\TestHarness;
-use PHPUnit_Framework_TestCase;
 
 /**
  * Unit tests for simple JSON-based record collection.
@@ -78,7 +78,7 @@ class RecordCollectionTest extends PHPUnit_Framework_TestCase
             ]
         );
         for ($i = 0; $i < 5; $i++) {
-            $coll->add($this->getMock('VuFindSearch\Response\RecordInterface'));
+            $coll->add($this->createMock('VuFindSearch\Response\RecordInterface'));
         }
         $coll->rewind();
         $this->assertEquals(5, $coll->key());

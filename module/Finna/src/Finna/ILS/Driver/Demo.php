@@ -22,7 +22,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  ILS_Drivers
@@ -32,6 +32,7 @@
  * @link     https://vufind.org/wiki/development:plugins:ils_drivers Wiki
  */
 namespace Finna\ILS\Driver;
+
 use VuFind\Exception\ILS as ILSException;
 
 /**
@@ -60,7 +61,8 @@ class Demo extends \VuFind\ILS\Driver\Demo
     public function getConfig($function, $params = null)
     {
         if ($function == 'onlinePayment') {
-            return $this->config['OnlinePayment'];
+            return isset($this->config['OnlinePayment'])
+                ? $this->config['OnlinePayment'] : [];
         }
 
         return parent::getConfig($function, $params);
@@ -107,7 +109,7 @@ class Demo extends \VuFind\ILS\Driver\Demo
                 if (!$fine['payableOnline'] && !$fine['accruedFine']) {
                     $nonPayableReason
                         = 'online_payment_fines_contain_nonpayable_fees';
-                } else if ($fine['payableOnline']) {
+                } elseif ($fine['payableOnline']) {
                     $amount += $fine['balance'];
                 }
             }
@@ -123,6 +125,11 @@ class Demo extends \VuFind\ILS\Driver\Demo
             }
             return $res;
         }
+        return [
+            'payable' => false,
+            'amount' => 0,
+            'reason' => 'online_payment_minimum_fee'
+        ];
     }
 
     /**
@@ -138,7 +145,8 @@ class Demo extends \VuFind\ILS\Driver\Demo
     {
         $accruedType = 'Accrued Fine';
 
-        $config = $this->config['OnlinePayment'];
+        $config = isset($this->config['OnlinePayment'])
+            ? $this->config['OnlinePayment'] : [];
         $nonPayable = isset($config['nonPayable'])
             ? $config['nonPayable'] : []
         ;
@@ -162,13 +170,14 @@ class Demo extends \VuFind\ILS\Driver\Demo
      *
      * This is called after a successful online payment.
      *
-     * @param array $patron Patron.
-     * @param int   $amount Amount to be registered as paid.
+     * @param array  $patron        Patron.
+     * @param int    $amount        Amount to be registered as paid.
+     * @param string $transactionId Transaction ID.
      *
      * @throws ILSException
      * @return boolean success
      */
-    public function markFeesAsPaid($patron, $amount)
+    public function markFeesAsPaid($patron, $amount, $transactionId)
     {
         if ((rand() % 10) > 8) {
             throw new ILSException('online_payment_registration_failed');

@@ -4,7 +4,7 @@
  *
  * PHP version 5
  *
- * Copyright (C) The National Library of Finland 2015-2016.
+ * Copyright (C) The National Library of Finland 2015-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * PHP version 5
  *
@@ -29,6 +29,7 @@
  * @link     http://vufind.org   Main Site
  */
 namespace Finna\Controller;
+
 use Zend\Mail as Mail;
 
 /**
@@ -51,39 +52,48 @@ class FeedbackController extends \VuFind\Controller\FeedbackController
      */
     public function emailAction()
     {
+        $user = $this->getUser();
+
         $view = $this->createViewModel();
         $view->useRecaptcha = $this->recaptcha()->active('feedback');
-        $category = $this->params()->fromPost('category');
-        $name = $this->params()->fromPost('name');
-        $users_email = $this->params()->fromPost('email');
-        $comments = $this->params()->fromPost('comments');
-        $url = $this->params()->fromPost('url');
+        $view->category = $this->params()->fromPost(
+            'category', $this->params()->fromQuery('category')
+        );
+        $view->name = $this->params()->fromPost(
+            'name',
+            $user ? trim($user->firstname . ' ' . $user->lastname) : ''
+        );
+        $view->users_email = $this->params()->fromPost(
+            'email',
+            $user ? $user->email : ''
+        );
+        $view->comments = $this->params()->fromPost(
+            'comments', $this->params()->fromQuery('comments')
+        );
+        $view->url = $this->params()->fromPost(
+            'url', $this->params()->fromQuery('url')
+        );
         $captcha = $this->params()->fromPost('captcha');
+
+        // Support the old captcha mechanism for now
+        if ($captcha == $this->translate('feedback_captcha_answer')) {
+            $view->useRecaptcha = false;
+        }
 
         // Process form submission:
         if ($this->formWasSubmitted('submit', $view->useRecaptcha)) {
-            if (empty($captcha)
-                || $captcha != $this->translate('feedback_captcha_answer')
-            ) {
-                $view->setTemplate('feedback/home');
-                $view->category = $category;
-                $view->name = $name;
-                $view->email = $users_email;
-                $view->comments = $comments;
-                $view->url = $url;
-                $this->flashMessenger()->addErrorMessage('feedback_captcha_error');
-                return $view;
-            }
-            if (empty($comments)) {
+            if (empty($view->comments)) {
                 throw new \Exception('Missing data.');
             }
             $validator = new \Zend\Validator\EmailAddress();
-            if (!empty($users_email) && !$validator->isValid($users_email)) {
+            if (!empty($view->users_email)
+                && !$validator->isValid($view->users_email)
+            ) {
                 throw new \Exception('Email address is invalid');
             }
 
             // These settings are set in the feedback section of your config.ini
-            $config = $this->getServiceLocator()->get('VuFind\Config')
+            $config = $this->serviceLocator->get('VuFind\Config')
                 ->get('config');
             $feedback = isset($config->Feedback) ? $config->Feedback : null;
             $recipient_email = !empty($feedback->recipient_email)
@@ -92,7 +102,7 @@ class FeedbackController extends \VuFind\Controller\FeedbackController
                 ? $feedback->recipient_name : 'Your Library';
             $email_subject = isset($feedback->email_subject)
                 ? $feedback->email_subject : 'VuFind Feedback';
-            $email_subject .= ' (' . $this->translate($category) . ')';
+            $email_subject .= ' (' . $this->translate($view->category) . ')';
             $sender_email = isset($feedback->sender_email)
                 ? $feedback->sender_email : 'noreply@vufind.org';
             $sender_name = isset($feedback->sender_name)
@@ -104,22 +114,41 @@ class FeedbackController extends \VuFind\Controller\FeedbackController
             }
 
             $email_message = $this->translate('feedback_category') . ': '
-                . $this->translate($category) . "\n";
+                . $this->translate($view->category) . "\n";
             $email_message .= $this->translate('feedback_name') . ': '
-                . ($name ? $name : '-') . "\n";
+                . ($view->name ? $view->name : '-') . "\n";
             $email_message .= $this->translate('feedback_email') . ': '
-                . ($users_email ? $users_email : '-') . "\n";
+                . ($view->users_email ? $view->users_email : '-') . "\n";
             $email_message .= $this->translate('feedback_url') . ': '
-                . ($url ? $url : '-') . "\n";
+                . ($view->url ? $view->url : '-') . "\n";
+            if ($user) {
+                $loginMethod = $this->translate(
+                    'login_method_' . $user->finna_auth_method,
+                    null,
+                    $user->finna_auth_method
+                );
+                $email_message .= $this->translate('feedback_user_login_method')
+                    . ": $loginMethod\n";
+            } else {
+                $email_message .= $this->translate('feedback_user_anonymous') . "\n";
+            }
+            $permissionManager
+                = $this->serviceLocator->get('VuFind\Role\PermissionManager');
+            $roles = $permissionManager->getActivePermissions();
+            $email_message .= $this->translate('feedback_user_roles') . ': '
+                . implode(', ', $roles) . "\n";
+
             $email_message .= "\n" . $this->translate('feedback_message') . ":\n";
-            $email_message .= "----------\n\n$comments\n\n----------\n";
+            $email_message .= "----------\n\n$view->comments\n\n----------\n";
 
             // This sets up the email to be sent
             $mail = new Mail\Message();
             $mail->setEncoding('UTF-8');
             $mail->setBody($email_message);
             $mail->setFrom($sender_email, $sender_name);
-            $mail->setReplyTo($users_email, $name);
+            if (!empty($view->users_email)) {
+                $mail->setReplyTo($view->users_email, $view->name);
+            }
             $mail->addTo($recipient_email, $recipient_name);
             $mail->setSubject($email_subject);
             $headers = $mail->getHeaders();
@@ -127,7 +156,7 @@ class FeedbackController extends \VuFind\Controller\FeedbackController
             $headers->addHeaderLine('Content-Type', 'text/plain; charset=UTF-8');
 
             try {
-                $this->getServiceLocator()->get('VuFind\Mailer')->getTransport()
+                $this->serviceLocator->get('VuFind\Mailer')->getTransport()
                     ->send($mail);
                 $view->setTemplate('feedback/response');
             } catch (\Exception $e) {

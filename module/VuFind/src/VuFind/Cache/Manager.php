@@ -26,7 +26,9 @@
  * @link     https://vufind.org Main Page
  */
 namespace VuFind\Cache;
-use Zend\Cache\StorageFactory, Zend\Config\Config;
+
+use Zend\Cache\StorageFactory;
+use Zend\Config\Config;
 
 /**
  * VuFind Cache Manager
@@ -89,7 +91,7 @@ class Manager
         $cacheBase = $this->getCacheDir();
 
         // Set up standard file-based caches:
-        foreach (['config', 'cover', 'language', 'object'] as $cache) {
+        foreach (['config', 'cover', 'language', 'object', 'yaml'] as $cache) {
             $this->createFileCache($cache, $cacheBase . $cache . 's');
         }
         $this->createFileCache('public', $cacheBase . 'public');
@@ -159,7 +161,7 @@ class Manager
 
         if (strlen(LOCAL_CACHE_DIR) > 0) {
             $dir = LOCAL_CACHE_DIR . '/';
-        } else if (strlen(LOCAL_OVERRIDE_DIR) > 0) {
+        } elseif (strlen(LOCAL_OVERRIDE_DIR) > 0) {
             $dir = LOCAL_OVERRIDE_DIR . '/cache/';
         } else {
             $dir = APPLICATION_PATH . '/data/cache/';

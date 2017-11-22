@@ -37,14 +37,26 @@ HMACKeys = id:item_id:holdtype:level
 defaultRequiredDate = 0:0:1
 
 ; extraHoldFields - A colon-separated list used to display extra visible fields in the
-; place holds form. Supported values are "comments", "requiredByDate" and 
-; "pickUpLocation"  
-extraHoldFields = requiredByDate:pickUpLocation
+; place holds form. Supported values are "comments", "requiredByDate",
+; "pickUpLocation", "requestGroup" and "acceptTerms"
+extraHoldFields = pickUpLocation
 
 ; A Pick Up Location Code used to pre-select the pick up location drop down list and
-; provide a default option if others are not available. Must correspond with one of 
+; provide a default option if others are not available. Must correspond with one of
 ; the Location IDs returned by getPickUpLocations()
 defaultPickUpLocation = 1.001
+
+; A colon-separated list used to exclude certain pick up locations
+;excludePickUpLocations = "1.001:7.115:12.160"
+
+; A request group ID used to pre-select the request group drop down list and
+; provide a default option if others are not available. Must be one of the following:
+; 1) empty string to indicate that the first group is default (default setting is
+; normal hold)
+; 2) "user-selected" to indicate that the user always has to choose the group
+; 3) "regional" in order to select regional hold as the default.
+; This setting is only effective if requestGroup is specified in extraHoldFields.
+;defaultRequestGroup = ""
 
 ; By default item holds are enabled. Uncomment this setting to disable item holds.
 ;enableItemHolds = false
@@ -52,14 +64,23 @@ defaultPickUpLocation = 1.001
 ; Uncomment this setting to enable regional holds.
 ;regionalHold = true
 
+; This setting is for organisations with a single reservation queue.
+; By default multiple reservation queues are shown. Uncomment this setting to show only
+; a single reservation queue.
+;singleReservationQueue = true
+
 ; Optional help texts that can be displayed on the hold form
 ;helpText = "Help text for all languages."
 ;helpText[en-gb] = "Help text for English language."
 
+; Optional label for the "acceptTerms" extra field
+;acceptTermsText = "I accept the terms in any language."
+;acceptTermsText[en-gb] = "I accept the terms in English."
+
 [cancelHolds]
 HMACKeys = id
 
-; Uncomment the following lines to enable password (PIN) change 
+; Uncomment the following lines to enable password (PIN) change
 [changePassword]
 ; PIN change parameters.
 minLength = 4
@@ -76,10 +97,10 @@ method = driver
 ; emailAddress is required for the email method
 ;emailAddress =
 ; Uncomment the following lines to change which fields are included in the form
-; when using the email method. Format for the fields is label:profile_field  
+; when using the email method. Format for the fields is label:profile_field
 ; Default is address, zip, city and country. Email and phone are included unless
-; they have their own sections [updateEmail] or [updatePhone] defined. Also custom 
-; fields can be defined.  
+; they have their own sections [updateEmail] or [updatePhone] defined. Also custom
+; fields can be defined.
 ;fields[] = Address:address1
 ;fields[] = Zip:zip
 ;fields[] = City:city
@@ -87,10 +108,10 @@ method = driver
 ;fields[] = Phone:phone
 ;fields[] = Email:email
 ;fields[] = Additional info:info
-; url is required for the url method. url can be a single address or an array of 
+; url is required for the url method. url can be a single address or an array of
 ; language-specific addresses. First example is a single one:
 ;url = http://address.of.change.form
-; Alternatively different links can be specified for each language:    
+; Alternatively different links can be specified for each language:
 ;url[fi] = http://address.of.change.form/finnish
 ;url[sv] = http://address.of.change.form/swedish
 ;url[en-gb] = http://address.of.change.form/english
@@ -113,18 +134,24 @@ method = driver
 ;method = email
 ; emailAddress is required for the email method
 ;emailAddress =
-; url is required for the url method. url can be a single address or an array of 
+; url is required for the url method. url can be a single address or an array of
 ; language-specific addresses. First example is a single one:
 ;url = "http://address.of.change.form"
-; Alternatively different links can be specified for each language:   
+; Alternatively different links can be specified for each language:
 ;url[fi] = http://address.of.change.form/finnish
 ;url[sv] = http://address.of.change.form/swedish
 ;url[en-gb] = http://address.of.change.form/english
 
 ; Settings for messaging Settings
 [messagingSettings]
-; Uncomment the corresponding lines of a service in order to show "no notification" option 
-; for a certain notification settings change request. 
-;pickUpNoticeMethodNone = true
-;overdueNoticeMethodNone = true
-;dueDateAlertMethodNone = true
+; A colon-separated list used to display messaging settings
+; Valid options for pickUpNotice and overdueNotice are letter, email, sms and none
+; Valid options for dueDateAlert are none and email
+pickUpNotice = "letter:email:sms"
+overdueNotice = "letter:email:sms"
+dueDateAlert = "none:email"
+
+; Due date reminder settings
+[dueDateReminder]
+; By default due date reminder is disabled in Finna since the ILS does the job
+enabled = false

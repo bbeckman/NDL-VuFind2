@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  RecordTabs
@@ -63,9 +63,17 @@ class Map extends \VuFind\RecordTab\Map
         if (empty($locations)) {
             return json_encode([]);
         }
-        foreach ($locations as $location) {
+        $markers = [];
+        $center = $this->getRecordDriver()->tryMethod('getGeoCenter');
+        foreach ($locations as $i => $location) {
+            if (strstr($location, 'EMPTY') !== false) {
+                continue;
+            }
             $marker = $this->locationToMarker($location);
             $marker['title'] = (string)$this->getRecordDriver()->getBreadcrumb();
+            if ($i == 0 && $center) {
+                $marker['center'] = $center;
+            }
             $markers[] = $marker;
         }
         return json_encode($markers);
@@ -79,7 +87,13 @@ class Map extends \VuFind\RecordTab\Map
     public function isActive()
     {
         $locations = $this->getRecordDriver()->tryMethod('getGeoLocations');
-        return !empty($locations);
+        foreach ($locations as $location) {
+            if (strstr($location, 'EMPTY') !== false) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -93,7 +107,7 @@ class Map extends \VuFind\RecordTab\Map
     {
         $array = [];
         $envelope = preg_replace('/.*\((.+)\).*/', '\\1', $envelope);
-        list($minX, $maxX, $maxY, $minY) = explode(' ', trim($envelope));
+        list($minX, $maxX, $maxY, $minY) = explode(',', trim($envelope));
         return [
             [(float)$minY, (float)$minX],
             [(float)$minY, (float)$maxX],
@@ -118,16 +132,17 @@ class Map extends \VuFind\RecordTab\Map
         ];
 
         $p = strpos($location, '(');
-        $type = strtolower(substr($location, 0, $p));
+        $type = strtolower(trim(substr($location, 0, $p)));
 
         if ($p > 0 && in_array($type, $wktTypes)) {
             return ['wkt' => $location];
         }
 
         if ($type == 'point' || $type == 'multipoint') {
-            if (preg_match_all(
+            $isPoint = preg_match_all(
                 '/\((.+)\s+?(.+)\)/', $location, $matches, PREG_SET_ORDER
-            )) {
+            );
+            if ($isPoint) {
                 $results = [];
                 foreach ($matches as $match) {
                     $results[] = [

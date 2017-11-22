@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  RecordDrivers
@@ -45,16 +45,24 @@ trait SolrFinna
     use FinnaRecord;
 
     /**
-     * Return an associative array of image URLs associated with this record
-     * (key = URL, value = description), if available; false otherwise.
+     * Return an array of image URLs associated with this record with keys:
+     * - urls        Image URLs
+     *   - small     Small image (mandatory)
+     *   - medium    Medium image (mandatory)
+     *   - large     Large image (optional)
+     * - description Description text
+     * - rights      Rights
+     *   - copyright   Copyright (e.g. 'CC BY 4.0') (optional)
+     *   - description Human readable description (array)
+     *   - link        Link to copyright info
      *
-     * @param string $size Size of requested images
+     * @param string $language Language for copyright information
      *
-     * @return mixed
+     * @return array
      */
-    public function getAllThumbnails($size = 'large')
+    public function getAllImages($language = 'fi')
     {
-        return false;
+        return [];
     }
 
     /**
@@ -79,6 +87,50 @@ trait SolrFinna
     public function getAccessRestrictionsType()
     {
         return false;
+    }
+
+    /**
+     * Get Author Information with Associated Data Fields
+     *
+     * @param string $index      The author index [primary, corporate, or secondary]
+     * used to construct a method name for retrieving author data (e.g.
+     * getPrimaryAuthors).
+     * @param array  $dataFields An array of fields to used to construct method
+     * names for retrieving author-related data (e.g., if you pass 'role' the
+     * data method will be similar to getPrimaryAuthorsRoles). This value will also
+     * be used as a key associated with each author in the resulting data array.
+     *
+     * @return array
+     */
+    public function getAuthorDataFields($index, $dataFields = [])
+    {
+        $data = $dataFieldValues = [];
+
+        // Collect author data
+        $authorMethod = sprintf('get%sAuthors', ucfirst($index));
+        $authors = $this->tryMethod($authorMethod, [], []);
+
+        // Collect attribute data
+        foreach ($dataFields as $field) {
+            $fieldMethod = $authorMethod . ucfirst($field) . 's';
+            $dataFieldValues[$field] = $this->tryMethod($fieldMethod, [], []);
+        }
+
+        // Match up author and attribute data (this assumes that the attribute
+        // arrays have the same indices as the author array; i.e. $author[$i]
+        // has $dataFieldValues[$attribute][$i].
+        foreach ($authors as $i => $author) {
+            if (!isset($data[$author])) {
+                $data[$author] = [];
+            }
+
+            foreach ($dataFieldValues as $field => $dataFieldValue) {
+                $data[$author][$field][] = !empty($dataFieldValue[$i])
+                    ? $dataFieldValue[$i] : '-';
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -116,6 +168,24 @@ trait SolrFinna
     public function getBuilding()
     {
         return isset($this->fields['building']) ? $this->fields['building'] : [];
+    }
+
+    /**
+     * Return geographic center point
+     *
+     * @return array lon, lat
+     */
+    public function getGeoCenter()
+    {
+        if (isset($this->fields['center_coords'])) {
+            if (strstr($this->fields['center_coords'], ',') !== false) {
+                list($lat, $lon) = explode(',', $this->fields['center_coords'], 2);
+            } else {
+                list($lon, $lat) = explode(' ', $this->fields['center_coords'], 2);
+            }
+            return ['lon' => $lon, 'lat' => $lat];
+        }
+        return [];
     }
 
     /**
@@ -214,6 +284,22 @@ trait SolrFinna
     public function getIdentifier()
     {
         return [];
+    }
+
+    /**
+     * Return image description.
+     *
+     * @param int $index Image index
+     *
+     * @return string
+     */
+    public function getImageDescription($index = 0)
+    {
+        $images = array_values($this->getAllImages());
+        if (!empty($images[$index])) {
+            return $images[$index]['description'];
+        }
+        return '';
     }
 
     /**
@@ -385,7 +471,7 @@ trait SolrFinna
 
     /**
      * Returns an array of parameter to send to Finna's cover generator.
-     * Fallbacks to VuFind's getThumbnail if no record image with the
+     * Falls back to VuFind's getThumbnail if no record image with the
      * given index was found.
      *
      * @param string $size  Size of thumbnail
@@ -395,31 +481,24 @@ trait SolrFinna
      */
     public function getRecordImage($size = 'small', $index = 0)
     {
-        if ($urls = $this->getAllThumbnails($size)) {
-            $urls = array_keys($urls);
-            if ($index == 0) {
-                $url = $urls[0];
-            } elseif (isset($urls[$index])) {
-                $url = $urls[$index];
-            } else {
-                $url = null;
-            }
-            if (!is_array($url)) {
-                $params = ['id' => $this->getUniqueId(), 'url' => $url];
+        if ($images = $this->getAllImages()) {
+            if (isset($images[$index]['urls'][$size])) {
+                $params = $images[$index]['urls'][$size];
+                if (!is_array($params)) {
+                    $params = [
+                        'url' => $params
+                    ];
+                }
                 if ($size == 'large') {
                     $params['fullres'] = 1;
                 }
+                $params['id'] = $this->getUniqueId();
                 return $params;
             }
         }
         $params = parent::getThumbnail($size);
         if ($params && !is_array($params)) {
             $params = ['url' => $params];
-        } elseif (!isset($params['isbn'])) {
-            // Allow also invalid ISBNs
-            if ($isbn = $this->getFirstISBN()) {
-                $params['invisbn'] = $isbn;
-            }
         }
         return $params;
     }
@@ -448,6 +527,31 @@ trait SolrFinna
             return $this->mainConfig['ImageRights'][$language][$copyright];
         }
         return false;
+    }
+
+    /**
+     * Returns one of three things: a full URL to a thumbnail preview of the record
+     * if an image is available in an external system; an array of parameters to
+     * send to VuFind's internal cover generator if no fixed URL exists; or false
+     * if no thumbnail can be generated.
+     *
+     * @param string $size Size of thumbnail (small, medium or large -- small is
+     * default).
+     *
+     * @return string|array|bool
+     */
+    public function getThumbnail($size = 'small')
+    {
+        $result = parent::getThumbnail($size);
+
+        if (is_array($result) && !isset($result['isbn'])) {
+            // Allow also invalid ISBNs
+            if ($isbn = $this->getFirstISBN()) {
+                $result['invisbn'] = $isbn;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -576,6 +680,10 @@ trait SolrFinna
             return 'Article';
         } elseif (in_array('0/Journal/', $formats)) {
             return 'Journal';
+        } elseif (strlen($this->getCleanISSN()) > 0) {
+            return 'Journal';
+        } elseif (strlen($this->getCleanISBN()) > 0) {
+            return 'Book';
         } elseif (isset($formats[0])) {
             $format = explode('/', $formats[0]);
             if (isset($format[1])) {
@@ -606,6 +714,39 @@ trait SolrFinna
                 'source' => $source,
                 'id' => $id
             ];
+        }
+        if (!empty($this->recordConfig->Record->sort_sources)) {
+            usort(
+                $results,
+                function ($a, $b) {
+                    return strcasecmp(
+                        $this->translate('source_' . $a['source']),
+                        $this->translate('source_' . $b['source'])
+                    );
+                }
+            );
+        }
+        return $results;
+    }
+
+    /**
+     * Get information on records deduplicated with this one
+     *
+     * @return array Array keyed by source id containing record id
+     */
+    public function getDedupData()
+    {
+        $results = parent::getDedupData();
+        if (!empty($this->recordConfig->Record->sort_sources)) {
+            uksort(
+                $results,
+                function ($a, $b) {
+                    return strcasecmp(
+                        $this->translate("source_$a"),
+                        $this->translate("source_$b")
+                    );
+                }
+            );
         }
         return $results;
     }
@@ -679,5 +820,18 @@ trait SolrFinna
             }
         }
         return false;
+    }
+
+    /**
+     * Get an array of strings representing citation formats supported
+     * by this record's data (empty if none).  For possible legal values,
+     * see /application/themes/root/helpers/Citation.php, getCitation()
+     * method.
+     *
+     * @return array Strings representing citation formats.
+     */
+    protected function getSupportedCitationFormats()
+    {
+        return ['APA', 'Chicago', 'MLA', 'Harvard'];
     }
 }

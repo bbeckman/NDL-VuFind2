@@ -28,14 +28,14 @@
  */
 namespace VuFindTest\Backend\Solr;
 
+use InvalidArgumentException;
+use PHPUnit_Framework_TestCase;
+
 use VuFindSearch\Backend\Solr\Connector;
 use VuFindSearch\Backend\Solr\HandlerMap;
 
 use Zend\Http\Client\Adapter\Test as TestAdapter;
 use Zend\Http\Client as HttpClient;
-
-use PHPUnit_Framework_TestCase;
-use InvalidArgumentException;
 
 /**
  * Unit tests for SOLR connector.
@@ -134,7 +134,7 @@ class ConnectorTest extends PHPUnit_Framework_TestCase
     public function testSaveThrowsUnknownFormat()
     {
         $conn = $this->createConnector();
-        $document = $this->getMock('VuFindSearch\Backend\Solr\Document\UpdateDocument');
+        $document = $this->createMock('VuFindSearch\Backend\Solr\Document\UpdateDocument');
         $conn->write($document, 'unknown', 'update');
     }
 

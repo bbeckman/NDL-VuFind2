@@ -33,8 +33,15 @@ ALTER TABLE `user` ADD COLUMN `finna_language` varchar(30) NOT NULL DEFAULT '';
 ALTER TABLE `user` ADD COLUMN `finna_due_date_reminder` int(11) NOT NULL DEFAULT 0;
 ALTER TABLE `user` ADD COLUMN `finna_last_login` datetime NOT NULL DEFAULT '2000-01-01 00:00:00';
 ALTER TABLE `user` ADD COLUMN `finna_auth_method` varchar(50) DEFAULT NULL;
+ALTER TABLE `user` ADD COLUMN `finna_last_expiration_reminder` datetime NOT NULL DEFAULT '2000-01-01 00:00:00';
 CREATE INDEX `finna_user_due_date_reminder_key` ON user (`finna_due_date_reminder`);
 CREATE INDEX `finna_user_email` ON user (`email`);
+
+--
+-- Additional columns for user_card
+--
+ALTER TABLE `user_card` ADD COLUMN `finna_due_date_reminder` int(11) NOT NULL DEFAULT 0;
+-- To initialize: UPDATE user_card SET finna_due_date_reminder=(SELECT finna_due_date_reminder FROM user WHERE user.id=user_card.user_id);
 
 --
 -- Additional columns for user_list
@@ -133,18 +140,16 @@ CREATE TABLE `finna_fee` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `finna_metalib_search` (
+CREATE TABLE `finna_cache` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `created` datetime NOT NULL DEFAULT '2000-01-01 00:00:00',
-  `finna_search_id` char(32) DEFAULT '',
-  `search_object` longtext,
+  `resource_id` varchar(255) NOT NULL,
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `mtime` int(11) NOT NULL,
+  `data` longblob,
   PRIMARY KEY (`id`),
-  KEY `finna_search_id` (`finna_search_id`),
-  KEY `created` (`created`)
+  UNIQUE KEY `resource_id` (`resource_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
-
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;

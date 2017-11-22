@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  View_Helpers
@@ -28,7 +28,9 @@
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
 namespace FinnaTheme\View\Helper;
+
 use Finna\Cache\Manager;
+use Finna\Db\Table\FinnaCache;
 use VuFindTheme\ThemeInfo;
 use Zend\Http\Request;
 
@@ -59,19 +61,28 @@ class HeadLink extends \VuFindTheme\View\Helper\HeadLink
     protected $request;
 
     /**
+     * FinnaCache table
+     *
+     * @var FinnaCache
+     */
+    protected $finnaCache;
+
+    /**
      * Constructor
      *
      * @param ThemeInfo   $themeInfo    Theme information service
      * @param string|bool $plconfig     Config for current application environment
      * @param Request     $request      Request
      * @param Manager     $cacheManager Cache manager
+     * @param FinnaCache  $finnaCache   FinnaCache table
      */
     public function __construct(ThemeInfo $themeInfo, $plconfig, Request $request,
-        $cacheManager
+        Manager $cacheManager, FinnaCache $finnaCache
     ) {
         parent::__construct($themeInfo, $plconfig);
         $this->request = $request;
         $this->cacheManager = $cacheManager;
+        $this->finnaCache = $finnaCache;
     }
 
     /**
@@ -203,5 +214,32 @@ class HeadLink extends \VuFindTheme\View\Helper\HeadLink
             return implode("\n", $result);
         }
         return '';
+    }
+
+    /**
+     * Returns true if file should not be included in the compressed concat file
+     * Required by ConcatTrait
+     *
+     * @param stdClass $item Link element object
+     *
+     * @return bool
+     */
+    protected function isExcludedFromConcat($item)
+    {
+        $ua = $this->request->getHeader('User-Agent');
+        $agent = is_object($ua) ? $ua->toString() : '';
+        return strstr($agent, 'MSIE 9.0') || strstr($agent, 'MSIE 8.0')
+            || strstr($agent, 'MSIE 7.0');
+    }
+
+    /**
+     * Get the minifier that can handle these file types
+     * Required by ConcatTrait
+     *
+     * @return \FinnaTheme\Minify\CSS
+     */
+    protected function getMinifier()
+    {
+        return new \FinnaTheme\Minify\CSS($this->finnaCache);
     }
 }

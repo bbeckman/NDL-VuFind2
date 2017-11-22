@@ -3,10 +3,12 @@
 ChangeLog
 \#*
 .\#*
+.php_cs_cache
 TAGS
 *~
+/downloads
+/solr/vendor
 /vendor
-composer.lock
 composer.phar
 import/solrmarc.log
 node_modules
@@ -25,6 +27,7 @@ Thumbs.db
 .buildpath
 .ExternalToolBuilders
 .idea
+.vscode
 
 # Local VuFind files
 local/cache/covers/large/*
@@ -45,3 +48,5 @@ local/import/import.properties
 local/import/import_auth.properties
 *.diff
 vufind.bat
+public/swagger-ui
+.vagrant

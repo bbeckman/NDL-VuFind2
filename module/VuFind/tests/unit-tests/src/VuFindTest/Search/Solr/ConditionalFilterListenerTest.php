@@ -28,17 +28,14 @@
  */
 namespace VuFindTest\Search\Solr;
 
-use VuFindSearch\ParamBag;
+use VuFind\Search\Solr\InjectConditionalFilterListener;
 use VuFindSearch\Backend\Solr\Backend;
 use VuFindSearch\Backend\Solr\Connector;
 use VuFindSearch\Backend\Solr\HandlerMap;
 
-use VuFind\Search\Solr\InjectConditionalFilterListener;
+use VuFindSearch\ParamBag;
 use VuFindTest\Unit\TestCase;
 use Zend\EventManager\Event;
-
-use ZfcRbac\Service\AuthorizationServiceAwareInterface,
-    ZfcRbac\Service\AuthorizationServiceAwareTrait;
 
 /**
  * Unit tests for Conditional Filter listener.
@@ -95,7 +92,7 @@ class ConditionalFilterListenerTest extends TestCase
     public function testAttach()
     {
         $listener = new InjectConditionalFilterListener(self::$emptySearchConfig);
-        $mock = $this->getMock('Zend\EventManager\SharedEventManagerInterface');
+        $mock = $this->createMock('Zend\EventManager\SharedEventManagerInterface');
         $mock->expects($this->once())->method('attach')->with(
             $this->equalTo('VuFind\Search'),
             $this->equalTo('pre'),

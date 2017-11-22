@@ -4,7 +4,7 @@
  *
  * PHP version 5
  *
- * Copyright (C) The National Library of Finland 2013-2015.
+ * Copyright (C) The National Library of Finland 2013-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -17,12 +17,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  RecordDrivers
  * @author   Anna Pienimäki <anna.pienimaki@helsinki.fi>
  * @author   Ere Maijala <ere.maijala@helsinki.fi>
+ * @author   Konsta Raunio <konsta.raunio@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:record_drivers Wiki
  */
@@ -35,6 +36,7 @@ namespace Finna\RecordDriver;
  * @package  RecordDrivers
  * @author   Anna Pienimäki <anna.pienimaki@helsinki.fi>
  * @author   Ere Maijala <ere.maijala@helsinki.fi>
+ * @author   Konsta Raunio <konsta.raunio@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:record_drivers Wiki
  */
@@ -74,43 +76,60 @@ class SolrQdc extends \VuFind\RecordDriver\SolrDefault
     }
 
     /**
-     * Return an associative array of image URLs associated with this record
-     * (key = URL, value = description).
+     * Return an array of image URLs associated with this record with keys:
+     * - url         Image URL
+     * - description Description text
+     * - rights      Rights
+     *   - copyright   Copyright (e.g. 'CC BY 4.0') (optional)
+     *   - description Human readable description (array)
+     *   - link        Link to copyright info
      *
-     * @param string $size Size of requested images
+     * @param string $language Language for copyright information
      *
-     * @return array
+     * @return mixed
      */
-    public function getAllThumbnails($size = 'large')
+    public function getAllImages($language = 'fi')
     {
+        $result = [];
         $urls = [];
-        foreach ($this->getSimpleXML()
-            ->xpath('file') as $node
-        ) {
+        $rights = [];
+        foreach ($this->getSimpleXML()->file as $node) {
             $attributes = $node->attributes();
-            if ($attributes->bundle
-                && $attributes->bundle == 'ORIGINAL' && $size == 'large'
-                || $attributes->bundle == 'THUMBNAIL' && $size != 'large'
-            ) {
-                $mimes = ['image/jpeg', 'image/png'];
-                $url = isset($attributes->href)
-                    ? (string)$attributes->href : (string)$node;
-
-                if ($size == 'large') {
-                    if (isset($attributes->type)) {
-                        if (!in_array($attributes->type, $mimes)) {
-                            continue;
-                        }
-                    } else {
-                        if (!preg_match('/\.(jpg|png)$/i', $url)) {
-                            continue;
-                        }
-                    }
+            $size = $attributes->bundle == 'THUMBNAIL' ? 'small' : 'large';
+            $mimes = ['image/jpeg', 'image/png'];
+            if (isset($attributes->type)) {
+                if (!in_array($attributes->type, $mimes)) {
+                    continue;
                 }
-                $urls[$url] = $url;
             }
+            $url = isset($attributes->href)
+                ? (string)$attributes->href : (string)$node;
+
+            if (!preg_match('/\.(jpg|png)$/i', $url)) {
+                continue;
+            }
+            $urls[$size] = $url;
         }
-        return $urls;
+
+        $xml = $this->getSimpleXML();
+        $rights['copyright'] = !empty($xml->rights) ? (string)$xml->rights : '';
+        $rights['link'] = $this->getRightsLink(
+            strtoupper($rights['copyright']), $language
+        );
+
+        if ($urls) {
+            if (!isset($urls['small'])) {
+                $urls['small'] = $urls['large'];
+            }
+            $urls['medium'] = $urls['small'];
+
+            $result[] = [
+                'urls' => $urls,
+                'description' => '',
+                'rights' => $rights
+            ];
+        }
+        return $result;
     }
 
     /**
@@ -148,7 +167,7 @@ class SolrQdc extends \VuFind\RecordDriver\SolrDefault
      */
     public function getFilteredXML()
     {
-        $record = clone($this->getSimpleXML());
+        $record = clone $this->getSimpleXML();
         while ($record->abstract) {
             unset($record->abstract[0]);
         }
@@ -197,5 +216,33 @@ class SolrQdc extends \VuFind\RecordDriver\SolrDefault
     {
         parent::setRawData($data);
         $this->simpleXML = null;
+    }
+
+    /**
+     * Return an array of associative URL arrays with one or more of the following
+     * keys:
+     *
+     * <li>
+     *   <ul>desc: URL description text to display (optional)</ul>
+     *   <ul>url: fully-formed URL (required if 'route' is absent)</ul>
+     *   <ul>route: VuFind route to build URL with (required if 'url' is absent)</ul>
+     *   <ul>routeParams: Parameters for route (optional)</ul>
+     *   <ul>queryString: Query params to append after building route (optional)</ul>
+     * </li>
+     *
+     * @return array
+     */
+    public function getURLs()
+    {
+        $urls = [];
+        foreach (parent::getURLs() as $url) {
+            $blacklisted = $this->urlBlacklisted(
+                isset($url['url']) ? $url['url'] : ''
+            );
+            if (!$blacklisted) {
+                $urls[] = $url;
+            }
+        }
+        return $urls;
     }
 }

@@ -4,7 +4,7 @@
  *
  * PHP version 5
  *
- * Copyright (C) The National Library of Finland 2016.
+ * Copyright (C) The National Library of Finland 2016-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -17,25 +17,27 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
- * @category VuFind2
+ * @category VuFind
  * @package  Service
  * @author   Samuli Sillanpää <samuli.sillanpaa@helsinki.fi>
+ * @author   Ere Maijala <ere.maijala@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
 namespace FinnaConsole\Service;
-use Finna\Db\Table\Transaction,
-    Finna\Db\Row\User,
-    Zend\Db\Sql\Select;
+
+use Finna\Db\Row\User;
+use Finna\Db\Table\Transaction;
 
 /**
  * Console service for processing unregistered online payments.
  *
- * @category VuFind2
+ * @category VuFind
  * @package  Service
  * @author   Samuli Sillanpää <samuli.sillanpaa@helsinki.fi>
+ * @author   Ere Maijala <ere.maijala@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
@@ -98,6 +100,13 @@ class OnlinePaymentMonitor extends AbstractService
     protected $viewManager = null;
 
     /**
+     * View renderer
+     *
+     * @var Zend\View\Renderer\PhpRenderer
+     */
+    protected $viewRenderer = null;
+
+    /**
      * Number of hours before considering unregistered transactions to be expired.
      *
      * @var int
@@ -119,6 +128,13 @@ class OnlinePaymentMonitor extends AbstractService
     protected $reportIntervalHours;
 
     /**
+     * Minimum age of paid transactions before they're considered failed.
+     *
+     * @var int
+     */
+    protected $minimumPaidAge;
+
+    /**
      * Constructor
      *
      * @param \Finna\ILS\Connection             $catalog          Catalog connection
@@ -127,9 +143,10 @@ class OnlinePaymentMonitor extends AbstractService
      * @param \VuFind\Config                    $configReader     Config reader
      * @param \VuFind\Mailer                    $mailer           Mailer
      * @param \Zend\Mvc\View\Console\ViewManage $viewManager      View manager
+     * @param Zend\View\Renderer\PhpRenderer    $viewRenderer     View renderer
      */
-    public function __construct(
-        $catalog, $transactionTable, $userTable, $configReader, $mailer, $viewManager
+    public function __construct($catalog, $transactionTable, $userTable,
+        $configReader, $mailer, $viewManager, $viewRenderer
     ) {
         $this->catalog = $catalog;
         $this->datasourceConfig = $configReader->get('datasources');
@@ -138,6 +155,7 @@ class OnlinePaymentMonitor extends AbstractService
         $this->userTable = $userTable;
         $this->mailer = $mailer;
         $this->viewManager = $viewManager;
+        $this->viewRenderer = $viewRenderer;
     }
 
     /**
@@ -155,12 +173,13 @@ class OnlinePaymentMonitor extends AbstractService
         }
 
         $this->collectScriptArguments($arguments);
-        $this->msg("OnlinePayment monitor started");
+        $this->msg('OnlinePayment monitor started');
 
         $expiredCnt = $failedCnt = $registeredCnt = $remindCnt = 0;
         $report = [];
         $user = false;
-        $failed = $this->transactionTable->getFailedTransactions();
+        $failed = $this->transactionTable
+            ->getFailedTransactions($this->minimumPaidAge);
         foreach ($failed as $t) {
             $this->processTransaction(
                 $t, $report, $registeredCnt, $expiredCnt, $failedCnt, $user
@@ -191,7 +210,7 @@ class OnlinePaymentMonitor extends AbstractService
 
         $this->sendReports($report);
 
-        $this->msg("OnlinePayment monitor completed");
+        $this->msg('OnlinePayment monitor completed');
 
         return true;
     }
@@ -211,7 +230,10 @@ class OnlinePaymentMonitor extends AbstractService
     protected function processTransaction(
         $t, &$report, &$registeredCnt, &$expiredCnt, &$failedCnt, &$user
     ) {
-        $this->msg("  Registering transaction id {$t->id} / {$t->transaction_id}");
+        $this->msg(
+            "  Registering transaction id {$t->id} / {$t->transaction_id}"
+            . " (status: {$t->complete} / {$t->status}, paid: {$t->paid})"
+        );
 
         // Check if the transaction has not been registered for too long
         $now = new \DateTime();
@@ -225,9 +247,10 @@ class OnlinePaymentMonitor extends AbstractService
             $report[$t->driver]++;
             $expiredCnt++;
 
-            if (!$this->transactionTable->setTransactionReported(
+            $result = $this->transactionTable->setTransactionReported(
                 $t->transaction_id
-            )) {
+            );
+            if (!$result) {
                 $this->err(
                     '    Failed to update transaction '
                     . $t->transaction_id . 'as reported'
@@ -283,10 +306,13 @@ class OnlinePaymentMonitor extends AbstractService
             }
 
             try {
-                $this->catalog->markFeesAsPaid($patron, $t->amount);
-                if (!$this->transactionTable->setTransactionRegistered(
+                $this->catalog->markFeesAsPaid(
+                    $patron, $t->amount, $t->transaction_id
+                );
+                $result = $this->transactionTable->setTransactionRegistered(
                     $t->transaction_id
-                )) {
+                );
+                if (!$result) {
                     $this->err(
                         '    Failed to update transaction '
                         . $t->transaction_id . 'as registered'
@@ -302,12 +328,13 @@ class OnlinePaymentMonitor extends AbstractService
                 $this->err('      ' . $e->getMessage());
                 $this->logException($e);
 
-                if ($this->transactionTable->setTransactionRegistrationFailed(
+                $result = $this->transactionTable->setTransactionRegistrationFailed(
                     $t->transaction_id, $e->getMessage()
-                )) {
+                );
+                if (!$result) {
                     $this->err(
                         'Error updating transaction ' . $t->transaction_id
-                        . ' status: ' . 'registering failed'
+                        . ' status: registration failed'
                     );
                 }
                 $failedCnt++;
@@ -353,8 +380,6 @@ class OnlinePaymentMonitor extends AbstractService
      */
     protected function sendReports($report)
     {
-        $renderer = $this->viewManager->getRenderer();
-
         $subject
             = 'Finna: ilmoitus tietokannan %s epäonnistuneista verkkomaksuista';
 
@@ -381,8 +406,8 @@ class OnlinePaymentMonitor extends AbstractService
                 ];
                 $messageSubject = sprintf($subject, $driver);
 
-                $message
-                    = $renderer->render('Email/online-payment-alert.phtml', $params);
+                $message = $this->viewRenderer
+                    ->render('Email/online-payment-alert.phtml', $params);
 
                 try {
                     $this->mailer->send(
@@ -412,6 +437,7 @@ class OnlinePaymentMonitor extends AbstractService
         $this->expireHours = $arguments[0];
         $this->fromEmail = $arguments[1];
         $this->reportIntervalHours = $arguments[2];
+        $this->minimumPaidAge = isset($arguments[3]) ? $arguments[3] : 120;
     }
 
     /**
@@ -421,18 +447,22 @@ class OnlinePaymentMonitor extends AbstractService
      */
     protected function usage()
     {
-// @codingStandardsIgnoreStart
+        // @codingStandardsIgnoreStart
         return <<<EOT
 Usage:
-  php index.php util online_payment_monitor <expire_hours> <from_email> <report_interval_hours>
+  php index.php util online_payment_monitor <expire_hours> <from_email>
+    <report_interval_hours> [minimum_paid_age]
 
   Validates unregistered online payment transactions.
     expire_hours          Number of hours before considering unregistered
                           transaction to be expired.
-    from_email            Sender email address for notification of expired transactions
+    from_email            Sender email address for notification of expired
+                          transactions
     report_interval_hours Interval when to re-send report of unresolved transactions
+    minimum_paid_age      Minimum age of transactions in 'paid' status until they are
+                          considered failed (seconds, default 120)
 
 EOT;
-// @codingStandardsIgnoreEnd
+        // @codingStandardsIgnoreEnd
     }
 }

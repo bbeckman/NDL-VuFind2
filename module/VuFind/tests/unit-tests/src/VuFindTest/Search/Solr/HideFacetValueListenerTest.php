@@ -28,9 +28,9 @@
  */
 namespace VuFindTest\Search\Solr;
 
-use VuFindTest\Unit\TestCase;
 use VuFind\Search\Solr\HideFacetValueListener;
 use VuFindSearch\Backend\Solr\Response\Json\Facets;
+use VuFindTest\Unit\TestCase;
 use Zend\EventManager\Event;
 
 /**
@@ -120,7 +120,7 @@ class HideFacetValueListenerTest extends TestCase
     public function testAttach()
     {
         $listener = $this->getListener();
-        $mock = $this->getMock('Zend\EventManager\SharedEventManagerInterface');
+        $mock = $this->createMock('Zend\EventManager\SharedEventManagerInterface');
         $mock->expects($this->once())->method('attach')->with(
             $this->equalTo('VuFind\Search'),
             $this->equalTo('post'),

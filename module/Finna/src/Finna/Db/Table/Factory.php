@@ -4,7 +4,7 @@
  *
  * PHP version 5
  *
- * Copyright (C) The National Library of Finland 2015-2016.
+ * Copyright (C) The National Library of Finland 2015-2017.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Db_Table
@@ -26,6 +26,7 @@
  * @link     http://vufind.org/wiki/vufind2:developer_manual Wiki
  */
 namespace Finna\Db\Table;
+
 use Zend\Console\Console;
 use Zend\ServiceManager\ServiceManager;
 
@@ -40,40 +41,30 @@ use Zend\ServiceManager\ServiceManager;
  *
  * @codeCoverageIgnore
  */
-class Factory
+class Factory extends \VuFind\Db\Table\Factory
 {
     /**
-     * Construct the Resource table.
+     * Construct a generic table object.
      *
-     * @param ServiceManager $sm Service manager.
+     * @param string         $name    Name of table to construct (fully qualified
+     * class name, or else a class name within the current namespace)
+     * @param ServiceManager $sm      Service manager
+     * @param string         $rowName Name of custom row prototype object to
+     * retrieve (null for none).
+     * @param array          $args    Extra constructor arguments for table object
      *
-     * @return Resource
+     * @return object
      */
-    public static function getResource(ServiceManager $sm)
-    {
-        return new Resource($sm->getServiceLocator()->get('VuFind\DateConverter'));
-    }
-
-    /**
-     * Construct the User table.
-     *
-     * @param ServiceManager $sm Service manager.
-     *
-     * @return User
-     */
-    public static function getUser(ServiceManager $sm)
-    {
-        $config = $sm->getServiceLocator()->get('VuFind\Config')->get('config');
-        // Use a special row class when we're in privacy mode:
-        $privacy = isset($config->Authentication->privacy)
-            && $config->Authentication->privacy;
-        $rowClass = 'Finna\Db\Row\\' . ($privacy ? 'PrivateUser' : 'User');
-        $session = null;
-        if ($privacy) {
-            $sessionManager = $sm->getServiceLocator()->get('VuFind\SessionManager');
-            $session = new \Zend\Session\Container('Account', $sessionManager);
+    public static function getGenericTable($name, ServiceManager $sm,
+        $rowName = null, $args = []
+    ) {
+        $className = "\\Finna\\Db\\Table\\$name";
+        if (!class_exists($className)) {
+            $className = $name;
         }
-        return new User($config, $rowClass, $session);
+        return parent::getGenericTable(
+            $className, $sm, $rowName, $args
+        );
     }
 
     /**
@@ -92,6 +83,6 @@ class Factory
             $sessionManager = $sm->getServiceLocator()->get('VuFind\SessionManager');
             $session = new \Zend\Session\Container('List', $sessionManager);
         }
-        return new UserList($session);
+        return static::getGenericTable('UserList', $sm, 'userlist', [$session]);
     }
 }

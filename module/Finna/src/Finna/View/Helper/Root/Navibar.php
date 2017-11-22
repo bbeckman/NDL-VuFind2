@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  View_Helpers
@@ -170,7 +170,7 @@ class Navibar extends \Zend\View\Helper\AbstractHelper
      * to the current page url.
      * Note: the returned url does not include possible hash (anchor),
      * which is inserted on the client-side.
-     * /themes/finna/js/finna.js::initAnchorNavigationLinks
+     * /themes/finna2/js/finna.js::initAnchorNavigationLinks
      *
      * @param string $lng Language code
      *
@@ -263,6 +263,11 @@ class Navibar extends \Zend\View\Helper\AbstractHelper
                     $action = isset($action[$lng]) ? $action[$lng] : null;
                 }
 
+                if (strncmp($action, 'metalib-', 8) === 0) {
+                    // Discard MetaLib menu items
+                    continue;
+                }
+
                 $option = [
                     'id' => $itemKey, 'label' => "menu_$itemKey",
                     'action' => $parseUrl($action)
@@ -322,13 +327,13 @@ class Navibar extends \Zend\View\Helper\AbstractHelper
 
         $url = $action['url'];
 
-        if (strpos($url, 'combined-') === 0) {
+        if (strncmp($url, 'combined-', 9) === 0) {
             return $this->getViewHelper('combined')->isAvailable();
         }
-        if (strpos($url, 'metalib-') === 0) {
-            return $this->getViewHelper('metalib')->isAvailable();
+        if (strncmp($url, 'metalib-', 8) === 0) {
+            return false;
         }
-        if (strpos($url, 'primo-') === 0) {
+        if (strncmp($url, 'primo-', 6) === 0) {
             return $this->getViewHelper('primo')->isAvailable();
         }
         if ($url === 'browse-database') {

@@ -18,7 +18,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * @category VuFind
  * @package  Search
@@ -31,8 +31,8 @@ namespace Finna\Search\Solr;
 use VuFindSearch\Backend\BackendInterface;
 
 use Zend\EventManager\EventInterface;
-use Zend\ServiceManager\ServiceLocatorInterface;
 use Zend\EventManager\SharedEventManagerInterface;
+use Zend\ServiceManager\ServiceLocatorInterface;
 
 /**
  * Finna Solr extensions listener.
@@ -223,13 +223,23 @@ class SolrExtensionsListener
                                 $filter, 'score=recipDistance ', 10, 0
                             );
                             $boosts[] = $bq;
+                            // Add a separate boost for the centroid
+                            $bq = preg_replace(
+                                '/sfield=\w+/', 'sfield=center_coords', $bq
+                            );
+                            $boosts[] = $bq;
                         }
                         $params->set('bq', $boosts);
+
                         // Set also default query type since bq only works with
                         // DisMax and eDisMax.
                         $params->set('defType', 'edismax');
                     }
                 }
+            }
+            $sort = $params->get('sort');
+            if (empty($sort) || $sort[0] == 'score desc') {
+                $params->set('sort', 'score desc, first_indexed desc');
             }
         }
     }

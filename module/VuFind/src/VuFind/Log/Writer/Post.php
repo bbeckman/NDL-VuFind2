@@ -26,6 +26,7 @@
  * @link     https://vufind.org Main Site
  */
 namespace VuFind\Log\Writer;
+
 use Zend\Http\Client;
 
 /**
@@ -119,6 +120,6 @@ class Post extends \Zend\Log\Writer\AbstractWriter
         $this->client->setEncType($this->contentType);
         $this->client->setRawBody($this->getBody($this->applyVerbosity($event)));
         // Send
-        $response = $this->client->send();
+        $this->client->send();
     }
 }
