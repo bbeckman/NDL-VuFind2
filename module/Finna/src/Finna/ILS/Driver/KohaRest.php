@@ -762,13 +762,15 @@ class KohaRest extends \VuFind\ILS\Driver\KohaRest
         // we need to add a few dummy-fields that VuFind expects to be
         // defined for all elements.
 
+        // Use a stupid location name to make sure this doesn't get mixed with
+        // real items that don't have a proper location.
         $result = [
            'available' => $availableTotal,
            'total' => $itemsTotal,
            'locations' => count($locations),
            'availability' => null,
            'callnumber' => null,
-           'location' => null
+           'location' => '__HOLDINGSSUMMARYLOCATION__'
         ];
         if (!empty($this->config['Holdings']['display_total_hold_count'])) {
             $result['reservations'] = $requests;
@@ -793,7 +795,13 @@ class KohaRest extends \VuFind\ILS\Driver\KohaRest
             );
         }
         $result[] = $this->translateLocation($item['location']);
-        return implode(', ', $result);
+        $str = implode(', ', $result);
+        if (!empty($item['itemcallnumber'])
+            && !empty($this->config['Holdings']['display_full_call_number'])
+        ) {
+            $str .= ' ' . $item['itemcallnumber'];
+        }
+        return $str;
     }
 
     /**
@@ -834,11 +842,12 @@ class KohaRest extends \VuFind\ILS\Driver\KohaRest
 
         $statuses = [];
         foreach ($result[0]['item_availabilities'] as $i => $item) {
-            $holding = null;
+            // $holding is a reference!
+            unset($holding);
             if (!empty($item['holdingnumber'])
                 && isset($holdings[$item['holdingnumber']])
             ) {
-                $holding = $holdings[$item['holdingnumber']];
+                $holding = &$holdings[$item['holdingnumber']];
                 if ($holding['suppress']) {
                     continue;
                 }
@@ -885,7 +894,7 @@ class KohaRest extends \VuFind\ILS\Driver\KohaRest
                 $entry['is_holdable'] = false;
             }
 
-            if ($holding) {
+            if (isset($holding)) {
                 $entry += $this->getHoldingData($holding);
                 $holding['_hasItems'] = true;
             }

@@ -158,8 +158,11 @@ finna.record = (function finnaRecord() {
         accordion.addClass('active');
         window.location.hash = tabid;
         var newTab = getNewRecordTab(tabid).addClass('active');
-        if (accordion.find('.accordion-content .tab-pane').length < 1) {
-          accordion.find('.accordion-content').append(newTab);
+        if (accordion.hasClass('noajax')){
+          return true;
+        }
+        if (accordion.find('.accordion-content .tab-pane.' + tabid + '-tab').length < 1) {
+          accordion.find('.accordion-content').html(newTab);
           ajaxLoadTab(newTab, tabid, !$(this).parent().hasClass('initiallyActive'));
         }
         $('html, body').animate({scrollTop: accordion.offset().top - 64}, 150);
@@ -171,7 +174,7 @@ finna.record = (function finnaRecord() {
     var activeTab = $('.record-accordions .accordion.active a').attr('id');
     var $initiallyActiveTab = $('.record-accordions .accordion.initiallyActive a');
     var newTab = typeof window.location.hash !== 'undefined'
-        ? window.location.hash.toLowerCase() : '';
+      ? window.location.hash.toLowerCase() : '';
 
     // Open tab in url hash
     if (newTab.length <= 1 || newTab === '#tabnav') {
@@ -182,6 +185,16 @@ finna.record = (function finnaRecord() {
   }
 
   $(window).on('hashchange', applyRecordAccordionHash);
+
+  $(document).ready(function onReady() {
+    $('.sidebar .similar-records').load(
+      VuFind.path + '/AJAX/SimilarRecords',
+      {id: $('.similar-records').data('id')},
+      function loadDone() {
+        $('.similar-records .fa-spinner').addClass('hidden');
+      }
+    );
+  });
 
   var init = function init() {
     initHideDetails();

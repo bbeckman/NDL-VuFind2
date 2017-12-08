@@ -7,7 +7,7 @@
 .browsebar .nav>li .iconlabel:before,
 .browsebar .nav-dropdown-label.iconlabel:before,
 .browsebar .dropdown-menu a.iconlabel:before{
-  vertical-align: middle;
+  vertical-align: bottom;
   font-size: 1.3em;
   margin-right: 0.5em;   
 }
@@ -44,7 +44,7 @@
   line-height: 64px;
   float: left;
 }
-@media (max-width: @screen-sm) {
+@media (max-width: @screen-xs-max) {
   .browsebar {
     .dropdown-menu {
       position: absolute;
@@ -73,6 +73,19 @@
     padding: 0;
     padding-left: 1em;
     line-height: normal;
+    &:before {
+      font-family: 'icomoon';
+      content: "\e00d";
+      margin-right: 5px;
+      font-size: 1.3em;
+      vertical-align: bottom;
+    }
+    &:after {
+      font-family: icomoon;
+      content: "\e613";
+      vertical-align: middle;
+      margin-left: 5px;
+    }
     &:hover {
       background-color: darken(@finna-browsebar-background, 5%);
     }
@@ -112,14 +125,14 @@
     }
   }
   & ~ nav.navbar {
-    @media(min-width: @screen-sm) and (max-width: @screen-md){
+    @media(min-width: @screen-sm) and (max-width: @screen-sm-max){
       width: 65%;
     }
     @media(min-width: @screen-md){
       width: 70%;
     }
   }
-  @media(max-width: @screen-md){
+  @media(max-width: @screen-sm-max){
     width: 35%;
   }
 }

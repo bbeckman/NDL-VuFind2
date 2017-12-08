@@ -33,7 +33,7 @@
     > a {
       transition: background .2s ease-in-out;
       @media(max-width: @screen-md-max){
-        padding: 0 10px;
+        padding: 0 6px;
       }
     }
   }
@@ -47,7 +47,7 @@
 .navbar .navbar-logo {
   height: @navbar-logo-height;
   margin-top: ((@navbar-height/2)-(@navbar-logo-height/2));
-  margin-right: 20px;
+  margin-right: 10px;
 }
 
 .navbar-nav>li.lang>a {
@@ -64,7 +64,10 @@
 }  
 
 // fix navbar for logoutoptions
-.navbar .logoutOptions {
+.finna-navbar .navbar-nav .logoutOptions {
+  @media(max-width: @screen-sm){
+    margin: 0;
+  }
   a {
     color: @action-link-color;
   }
@@ -73,7 +76,6 @@
     left: auto;
     & > li {
       line-height: normal;
-      padding: 5px 0px;
       & > a {
         color: @text-color;
         width: 250px;
@@ -108,6 +110,9 @@
     font-weight: 600;
     @media (max-width: @screen-sm) {
       max-width: 80px;
+    }
+    @media (max-width: @screen-xxs) {
+      display: none;
     }
   }
   .description {
@@ -219,6 +224,7 @@
 .navbar-brand {
   padding: 0;
   line-height: @navbar-height;
+  max-width: 200px;
   .navbar-logo {
     font-size: @navbar-logo-height;
     color: @logo-color;
@@ -260,7 +266,6 @@
     padding-top: @navbar-padding-vertical;
     padding-bottom: @navbar-padding-vertical;
     line-height: @navbar-height;
-    color: @navbar-default-link-color;
     font-size: @navbar-font-size;
     font-weight: @navbar-font-weight;
   }
@@ -352,6 +357,13 @@
   @media (min-width: @grid-float-breakpoint) {
     float: left;
     margin: 0;
+  }
+}
+
+.finna-navbar {
+  .navbar-nav > li > a,
+  .navbar-collapse.in .dropdown-menu a {
+    color: @header-text-color;
   }
 }
 
@@ -552,7 +564,7 @@
 }
 
 /* Mobile navbar */
-@media(max-width: @grid-float-breakpoint) {
+@media(max-width: @grid-float-breakpoint-max) {
   .finna-navbar {
     position: fixed;
     right: 0;
@@ -560,7 +572,7 @@
     z-index: 100;
     top: 0;
     border-width: 0 0 1px;
-    background-color: @body-bg;
+    background-color: @header-background-color;
     box-shadow: 0 0 3px 3px rgba(0,0,0,0.1);
     .navbar-collapse > ul >li {
       border-bottom: 1px solid @gray-lighter;
@@ -574,7 +586,7 @@
     max-height: ~"calc(100vh - "@navbar-height~")";
   }
   .navbar-header {
-    padding-left: 15px;
+    padding-left: 10px;
   }
 }
 
