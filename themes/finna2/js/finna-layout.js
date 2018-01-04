@@ -351,7 +351,6 @@ finna.layout = (function finnaLayout() {
         scrollTop: $('.recordProvidedBy').offset().top
       }, 500);
     });
-    var modalContent = 0;
     if ($('.floating-feedback-btn').length) {
       var feedbackBtnOffset = $('.floating-feedback-btn').offset().top;
       $(window).scroll(function onScrollWindow(/*event*/) {
@@ -375,21 +374,6 @@ finna.layout = (function finnaLayout() {
         }
       });
     }
-
-    $('#modal').on('shown.bs.modal', function onShownModal(/*e*/) {
-      $('#hierarchyTree').scroll(function onScrollHierarchyTree() {
-        modalContent = $('#hierarchyTree').scrollTop();
-        if (modalContent > 1500) {
-          $('#modal .back-to-up').removeClass('hidden');
-        }
-        else {
-          $('#modal .back-to-up').addClass('hidden');
-        }
-      });
-      $('.back-to-up').click(function onClickBackToUp() {
-        $('#hierarchyTree, #modal').animate({scrollTop: 0 }, 200);
-      });
-    });
   }
 
   function initSearchboxFunctions() {
@@ -599,7 +583,9 @@ finna.layout = (function finnaLayout() {
           var $facetContainer = $container.find('div[data-facet="' + facet + '"]');
           $facetContainer.data('loaded', 'true');
           if (typeof facetData === 'number') {
-            $facetContainer.find('.avail-count').text(facetData);
+            $facetContainer.find('.avail-count').text(
+              facetData.toString().replace(/\B(?=(\d{3})+\b)/g, VuFind.translate('number_thousands_separator'))
+            );
           } else if (typeof facetData === 'string') {
             $facetContainer.html(facetData);
           } else {
